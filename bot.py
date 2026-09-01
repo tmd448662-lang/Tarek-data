@@ -1,13 +1,30 @@
+import os
 import requests
 import json
 import time
 from datetime import datetime, timezone
+from http.server import HTTPServer, BaseHTTPRequestHandler
+import threading
+
+# ─── DUMMY WEB SERVER FOR RENDER FREE TIER ───
+class HealthCheckHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"Bot is running alive!")
+
+def run_dummy_server():
+    port = int(os.environ.get("PORT", 8080))
+    server = HTTPServer(("0.0.0.0", port), HealthCheckHandler)
+    server.serve_forever()
+
+threading.Thread(target=run_dummy_server, daemon=True).start()
 
 # ─── ১. TELEGRAM BOT INFO ───
 BOT_TOKEN = "8386058038:AAEwayH-C4AUr7L_tx6Ecz__xpIXnrekJw0"
 CHAT_ID = "5012028880"
 
-# ─── ২. DIRECT API (NO PROXY NEEDED ON RENDER) ───
+# ─── ২. DIRECT API ───
 API_1M = "https://draw.ar-lottery01.com/WinGo/WinGo_1M/GetHistoryIssuePage.json?t="
 
 PATTERN = [
@@ -56,8 +73,6 @@ def fetch_real_result():
             if list_data:
                 latest = list_data[0]
                 return str(latest.get("issueNumber")), int(latest.get("number"))
-        else:
-            print("Status Code Error:", res.status_code)
     except Exception as e:
         print("Fetch Error:", e)
     return None, None
@@ -70,7 +85,7 @@ current_pred_signal = None
 current_pred_num = None
 pending_check = False
 
-send_telegram("🚀 *ANSH BOSS VIP PREDICTOR ACTIVATED (RENDER)!*")
+send_telegram("🚀 *ANSH BOSS VIP PREDICTOR ACTIVATED (RENDER FREE)!*")
 
 while True:
     try:
@@ -123,3 +138,4 @@ while True:
         print("Loop error:", e)
 
     time.sleep(3)
+
