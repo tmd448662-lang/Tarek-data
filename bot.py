@@ -25,7 +25,7 @@ BOT_TOKEN = "8386058038:AAEwayH-C4AUr7L_tx6Ecz__xpIXnrekJw0"
 CHAT_ID = "5012028880"
 SCRAPER_API_KEY = "809f9c620ed6b5fe5a72bc368e8eabee"
 
-API_1M = "https://draw.ar-lottery01.com/WinGo/WinGo_1M/GetHistoryIssuePage.json?t="
+RAW_API = "https://draw.ar-lottery01.com/WinGo/WinGo_1M/GetHistoryIssuePage.json?t="
 
 PATTERN = [
     {"s": "BIG", "n": 7}, {"s": "SMALL", "n": 2}, {"s": "SMALL", "n": 4}, {"s": "BIG", "n": 9},
@@ -39,7 +39,7 @@ def send_telegram(message):
     try:
         requests.post(url, json=payload, timeout=5)
     except Exception as e:
-        print("Telegram Error:", e)
+        print("Telegram Send Error:", e)
 
 def get_vip_prediction():
     now = datetime.now(timezone.utc)
@@ -60,22 +60,35 @@ def get_vip_prediction():
     return period_id, pred["s"], pred["n"]
 
 def fetch_real_result():
+    timestamp = str(int(time.time() * 1000))
+    raw_url = RAW_API + timestamp
+    
+    # ১. প্রথমে ডিরেক্ট রিকোয়েস্ট ট্রাই করবে (দ্রুত ডাটা পাওয়ার জন্য)
     try:
-        raw_url = API_1M + str(int(time.time() * 1000))
-        proxy_url = f"http://api.scraperapi.com?api_key={SCRAPER_API_KEY}&url={requests.utils.quote(raw_url)}"
-        
-        res = requests.get(proxy_url, timeout=12)
+        res = requests.get(raw_url, timeout=4)
         if res.status_code == 200:
             data = res.json()
             list_data = data.get("data", {}).get("list", [])
             if list_data:
-                latest = list_data[0]
-                return str(latest.get("issueNumber")), int(latest.get("number"))
+                return str(list_data[0].get("issueNumber")), int(list_data[0].get("number"))
+    except Exception:
+        pass
+
+    # ২. ডিরেক্ট ফেইল করলে ScraperAPI ব্যবহার করবে
+    try:
+        proxy_url = f"http://api.scraperapi.com?api_key={SCRAPER_API_KEY}&url={requests.utils.quote(raw_url)}"
+        res = requests.get(proxy_url, timeout=8)
+        if res.status_code == 200:
+            data = res.json()
+            list_data = data.get("data", {}).get("list", [])
+            if list_data:
+                return str(list_data[0].get("issueNumber")), int(list_data[0].get("number"))
     except Exception as e:
         print("Fetch Error:", e)
+
     return None, None
 
-# ─── GLOBAL COUNTERS ───
+# ─── GLOBAL STREAK COUNTERS ───
 total_wins = 0
 total_losses = 0
 current_win_streak = 0
@@ -90,46 +103,51 @@ while True:
     try:
         current_period, pred_signal, pred_num = get_vip_prediction()
         
-        # নতুন পিরিয়ড শুরু হলেই প্রসেস করবে
         if current_period != last_processed_period:
             
-            # ১. আগের পিরিয়ড থাকলে তার রেজাল্ট চেক (API আপডেট হওয়ার জন্য ৫ সেকেন্ড অপেক্ষা করবে)
+            # ১. আগের পিরিয়ড থাকলে তার RESULT মেসেজ দেওয়া
             if last_processed_period is not None:
-                time.sleep(5)
+                # রেজাল্ট ডাটা আপডেট হতে ৪-৫ সেকেন্ড লাগে
+                time.sleep(4)
                 
-                # ৩ বার চেষ্টা করবে রেজাল্ট আনার জন্য
-                for _ in range(3):
+                real_period = None
+                actual_num = None
+                
+                # সর্বোচ্চ ৫ বার ট্রাই করবে ডাটা পাওয়ার জন্য
+                for _ in range(5):
                     real_period, actual_num = fetch_real_result()
                     if real_period and real_period[-5:] == last_processed_period[-5:]:
-                        actual_size = "BIG" if actual_num >= 5 else "SMALL"
-                        is_win = (last_pred_signal == actual_size)
-                        
-                        if is_win:
-                            total_wins += 1
-                            current_win_streak += 1
-                            current_loss_streak = 0
-                            status_str = f"🟢 WIN {current_win_streak}!"
-                        else:
-                            total_losses += 1
-                            current_loss_streak += 1
-                            current_win_streak = 0
-                            status_str = f"🔴 LOSS {current_loss_streak}!"
-                        
-                        total_games = total_wins + total_losses
-                        win_rate = (total_wins / total_games) * 100 if total_games > 0 else 0
-                        
-                        res_msg = (
-                            f"🎯 *RESULT UPDATE*\n"
-                            f"🆔 *Period:* `{last_processed_period[-5:]}`\n"
-                            f"🎰 *Actual Number:* `{actual_num}` ({actual_size})\n"
-                            f"📌 *Result:* *{status_str}*\n"
-                            f"📊 *Win Rate:* `{win_rate:.1f}%` ({total_wins}W / {total_losses}L)"
-                        )
-                        send_telegram(res_msg)
                         break
-                    time.sleep(3)
+                    time.sleep(2)
 
-            # ২. রেজাল্ট দেওয়ার পর নতুন পিরিয়ডের প্রেডিকশন মেসেজ পাঠাবে
+                if real_period and actual_num is not None:
+                    actual_size = "BIG" if actual_num >= 5 else "SMALL"
+                    is_win = (last_pred_signal == actual_size)
+                    
+                    if is_win:
+                        total_wins += 1
+                        current_win_streak += 1
+                        current_loss_streak = 0
+                        status_str = f"🟢 WIN {current_win_streak}!"
+                    else:
+                        total_losses += 1
+                        current_loss_streak += 1
+                        current_win_streak = 0
+                        status_str = f"🔴 LOSS {current_loss_streak}!"
+                    
+                    total_games = total_wins + total_losses
+                    win_rate = (total_wins / total_games) * 100 if total_games > 0 else 0
+                    
+                    res_msg = (
+                        f"🎯 *RESULT UPDATE*\n"
+                        f"🆔 *Period:* `{last_processed_period[-5:]}`\n"
+                        f"🎰 *Actual Number:* `{actual_num}` ({actual_size})\n"
+                        f"📌 *Result:* *{status_str}*\n"
+                        f"📊 *Win Rate:* `{win_rate:.1f}%` ({total_wins}W / {total_losses}L)"
+                    )
+                    send_telegram(res_msg)
+
+            # ২. রেজাল্ট দেওয়ার পরপরই নতুন পিরিয়ডের PREDICTION পাঠাবে
             msg = (
                 f"⚡ *ANSH BOSS VIP PREDICTION*\n"
                 f"⏱️ *Mode:* 1 Minute Wingo\n"
@@ -139,7 +157,7 @@ while True:
             )
             send_telegram(msg)
             
-            # স্টেট আপডেট
+            # আপডেট স্টেট
             last_processed_period = current_period
             last_pred_signal = pred_signal
 
