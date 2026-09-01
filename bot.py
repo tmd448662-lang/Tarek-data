@@ -38,9 +38,25 @@ def send_telegram(message):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
     payload = {"chat_id": CHAT_ID, "text": message, "parse_mode": "Markdown"}
     try:
-        requests.post(url, json=payload, timeout=5)
+        res = requests.post(url, json=payload, timeout=5)
+        if res.status_code == 200:
+            return res.json().get("result", {}).get("message_id")
     except Exception as e:
         print("Telegram Send Error:", e)
+    return None
+
+def edit_telegram(message_id, message):
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/editMessageText"
+    payload = {
+        "chat_id": CHAT_ID,
+        "message_id": message_id,
+        "text": message,
+        "parse_mode": "Markdown"
+    }
+    try:
+        requests.post(url, json=payload, timeout=5)
+    except Exception as e:
+        print("Telegram Edit Error:", e)
 
 def get_vip_prediction():
     now = datetime.now(timezone.utc)
@@ -65,15 +81,13 @@ def fetch_real_result():
         raw_url = API_1M + str(int(time.time() * 1000))
         proxy_url = f"http://api.scraperapi.com?api_key={SCRAPER_API_KEY}&url={requests.utils.quote(raw_url)}"
         
-        res = requests.get(proxy_url, timeout=15)
+        res = requests.get(proxy_url, timeout=12)
         if res.status_code == 200:
             data = res.json()
             list_data = data.get("data", {}).get("list", [])
             if list_data:
                 latest = list_data[0]
                 return str(latest.get("issueNumber")), int(latest.get("number"))
-        else:
-            print("Fetch Status Error:", res.status_code)
     except Exception as e:
         print("Fetch Error:", e)
     return None, None
@@ -84,15 +98,17 @@ total_losses = 0
 current_win_streak = 0
 current_loss_streak = 0
 
-def check_result_in_background(period_to_check, pred_signal):
+def check_result_in_background(msg_id, period_to_check, pred_signal, pred_num):
     global total_wins, total_losses, current_win_streak, current_loss_streak
     
-    time.sleep(45)
+    # পিরিয়ড শেষ হওয়ার পর রেজাল্ট চেক করা শুরু করবে (৫৮ সেকেন্ড ওয়েট)
+    time.sleep(58)
     
     retry_count = 0
-    while retry_count < 10:
+    while retry_count < 12:
         real_period, actual_num = fetch_real_result()
         
+        # পিরিয়ড ম্যাচ হলে একই মেসেজ EDIT করবে
         if real_period and real_period[-5:] == period_to_check[-5:]:
             actual_size = "BIG" if actual_num >= 5 else "SMALL"
             is_win = (pred_signal == actual_size)
@@ -111,17 +127,22 @@ def check_result_in_background(period_to_check, pred_signal):
             total_games = total_wins + total_losses
             win_rate = (total_wins / total_games) * 100 if total_games > 0 else 0
             
-            res_msg = (
-                f"🎯 *RESULT UPDATE*\n"
+            updated_msg = (
+                f"⚡ *ANSH BOSS VIP PREDICTION*\n"
+                f"⏱️ *Mode:* 1 Minute Wingo\n"
                 f"🆔 *Period:* `{period_to_check[-5:]}`\n"
-                f"🎰 *Actual Number:* `{actual_num}` ({actual_size})\n"
-                f"📌 *Result:* *{status_str}*\n"
+                f"🔮 *Prediction:* `{pred_signal}` (Num: {pred_num})\n"
+                f"───────────────\n"
+                f"🎰 *Actual Result:* `{actual_num}` ({actual_size})\n"
+                f"📌 *Status:* *{status_str}*\n"
                 f"📊 *Win Rate:* `{win_rate:.1f}%` ({total_wins}W / {total_losses}L)"
             )
-            send_telegram(res_msg)
+            
+            if msg_id:
+                edit_telegram(msg_id, updated_msg)
             break
             
-        time.sleep(3)
+        time.sleep(2)
         retry_count += 1
 
 # ─── MAIN BOT LOOP ───
@@ -143,11 +164,11 @@ while True:
                 f"🔮 *Prediction:* `{pred_signal}` (Num: {pred_num})\n"
                 f"⏳ *Status:* Result Awaiting..."
             )
-            send_telegram(msg)
+            msg_id = send_telegram(msg)
 
             threading.Thread(
                 target=check_result_in_background, 
-                args=(current_period, pred_signal), 
+                args=(msg_id, current_period, pred_signal, pred_num), 
                 daemon=True
             ).start()
 
