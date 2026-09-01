@@ -20,9 +20,10 @@ def run_dummy_server():
 
 threading.Thread(target=run_dummy_server, daemon=True).start()
 
-# ─── ১. TELEGRAM BOT INFO ───
+# ─── ১. CONFIGURATION ───
 BOT_TOKEN = "8386058038:AAEwayH-C4AUr7L_tx6Ecz__xpIXnrekJw0"
 CHAT_ID = "5012028880"
+SCRAPER_API_KEY = "809f9c620ed6b5fe5a72bc368e8eabee"
 
 # ─── ২. DIRECT API ───
 API_1M = "https://draw.ar-lottery01.com/WinGo/WinGo_1M/GetHistoryIssuePage.json?t="
@@ -61,23 +62,23 @@ def get_vip_prediction():
 
 def fetch_real_result():
     try:
-        url = API_1M + str(int(time.time() * 1000))
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-            "Accept": "application/json, text/plain, */*"
-        }
-        res = requests.get(url, headers=headers, timeout=10)
+        raw_url = API_1M + str(int(time.time() * 1000))
+        proxy_url = f"http://api.scraperapi.com?api_key={SCRAPER_API_KEY}&url={requests.utils.quote(raw_url)}"
+        
+        res = requests.get(proxy_url, timeout=15)
         if res.status_code == 200:
             data = res.json()
             list_data = data.get("data", {}).get("list", [])
             if list_data:
                 latest = list_data[0]
                 return str(latest.get("issueNumber")), int(latest.get("number"))
+        else:
+            print("Fetch Status Error:", res.status_code)
     except Exception as e:
         print("Fetch Error:", e)
     return None, None
 
-# ─── GLOBAL VARIABLES FOR STREAK ───
+# ─── GLOBAL STREAK COUNTERS ───
 total_wins = 0
 total_losses = 0
 current_win_streak = 0
@@ -86,14 +87,12 @@ current_loss_streak = 0
 def check_result_in_background(period_to_check, pred_signal):
     global total_wins, total_losses, current_win_streak, current_loss_streak
     
-    # পিরিয়ডের খেলা শেষ হওয়া পর্যন্ত অপেক্ষা (মিনিট শেষ হওয়ার ৫ সেকেন্ড আগে ট্রাই শুরু করবে)
     time.sleep(45)
     
     retry_count = 0
     while retry_count < 10:
         real_period, actual_num = fetch_real_result()
         
-        # পিরিয়ড মিলে গেলে রেজাল্ট প্রসেস করবে
         if real_period and real_period[-5:] == period_to_check[-5:]:
             actual_size = "BIG" if actual_num >= 5 else "SMALL"
             is_win = (pred_signal == actual_size)
@@ -101,12 +100,12 @@ def check_result_in_background(period_to_check, pred_signal):
             if is_win:
                 total_wins += 1
                 current_win_streak += 1
-                current_loss_streak = 0  # Loss রিসেট
+                current_loss_streak = 0
                 status_str = f"🟢 WIN {current_win_streak}!"
             else:
                 total_losses += 1
                 current_loss_streak += 1
-                current_win_streak = 0  # Win রিসেট
+                current_win_streak = 0
                 status_str = f"🔴 LOSS {current_loss_streak}!"
             
             total_games = total_wins + total_losses
@@ -134,7 +133,6 @@ while True:
     try:
         period_id, pred_signal, pred_num = get_vip_prediction()
         
-        # নতুন পিরিয়ড আসার ১-২ সেকেন্ডের মধ্যেই মেসেজ পাঠাবে
         if period_id != current_period:
             current_period = period_id
             
@@ -147,7 +145,6 @@ while True:
             )
             send_telegram(msg)
 
-            # রেজাল্ট চেক করার কাজ ব্যাকগ্রাউন্ডে পাঠিয়ে দেওয়া হলো
             threading.Thread(
                 target=check_result_in_background, 
                 args=(current_period, pred_signal), 
