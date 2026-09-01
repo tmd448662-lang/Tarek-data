@@ -81,38 +81,38 @@ def fetch_real_result():
 wins = 0
 losses = 0
 current_period = None
-current_pred_signal = None
-current_pred_num = None
-pending_check = False
 
-send_telegram("🚀 *ANSH BOSS VIP PREDICTOR ACTIVATED (RENDER FREE)!*")
+send_telegram("🚀 *ANSH BOSS VIP PREDICTOR ACTIVATED!*")
 
 while True:
     try:
         period_id, pred_signal, pred_num = get_vip_prediction()
         
+        # ১. নতুন পিরিয়ড শুরু হওয়ার সাথে সাথে Prediction পাঠাবে
         if period_id != current_period:
             current_period = period_id
-            current_pred_signal = pred_signal
-            current_pred_num = pred_num
-            pending_check = True
             
             msg = (
                 f"⚡ *ANSH BOSS VIP PREDICTION*\n"
                 f"⏱️ *Mode:* 1 Minute Wingo\n"
                 f"🆔 *Period:* `{current_period[-5:]}`\n"
-                f"🔮 *Prediction:* `{current_pred_signal}` (Num: {current_pred_num})\n"
+                f"🔮 *Prediction:* `{pred_signal}` (Num: {pred_num})\n"
                 f"⏳ *Status:* Result Awaiting..."
             )
             send_telegram(msg)
 
-        if pending_check:
-            real_period, actual_num = fetch_real_result()
-            
-            if real_period and actual_num is not None:
-                if real_period[-5:] == current_period[-5:] or int(real_period) >= int(current_period) - 1:
+            # ২. রেজাল্ট আসার জন্য ৫০ সেকেন্ড অপেক্ষা করবে
+            time.sleep(50)
+
+            # ৩. রেজাল্ট ফেচ করবে (মিনিট শেষ হওয়া পর্যন্ত ট্রাই করবে)
+            retry_count = 0
+            while retry_count < 5:
+                real_period, actual_num = fetch_real_result()
+                
+                # যদি টার্গেট পিরিয়ডের রেজাল্ট ড্যাশবোর্ডে চলে আসে
+                if real_period and real_period[-5:] == current_period[-5:]:
                     actual_size = "BIG" if actual_num >= 5 else "SMALL"
-                    is_win = (current_pred_signal == actual_size)
+                    is_win = (pred_signal == actual_size)
                     
                     if is_win:
                         wins += 1
@@ -132,10 +132,12 @@ while True:
                         f"📊 *Win Rate:* `{win_rate:.1f}%` ({wins}W / {losses}L)"
                     )
                     send_telegram(res_msg)
-                    pending_check = False
+                    break
+                
+                time.sleep(3)
+                retry_count += 1
 
     except Exception as e:
         print("Loop error:", e)
 
-    time.sleep(3)
-
+    time.sleep(2)
