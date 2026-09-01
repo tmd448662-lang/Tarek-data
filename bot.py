@@ -6,12 +6,12 @@ from datetime import datetime, timezone
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import threading
 
-# ─── DUMMY WEB SERVER FOR RENDER ───
+# ─── DUMMY WEB SERVER FOR RENDER HEALTH CHECK ───
 class HealthCheckHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.end_headers()
-        self.wfile.write(b"Bot is running alive!")
+        self.wfile.write(b"Bot is active!")
 
 def run_dummy_server():
     port = int(os.environ.get("PORT", 8080))
@@ -20,12 +20,11 @@ def run_dummy_server():
 
 threading.Thread(target=run_dummy_server, daemon=True).start()
 
-# ─── ১. CONFIGURATION ───
+# ─── CONFIGURATION ───
 BOT_TOKEN = "8386058038:AAEwayH-C4AUr7L_tx6Ecz__xpIXnrekJw0"
 CHAT_ID = "5012028880"
 SCRAPER_API_KEY = "809f9c620ed6b5fe5a72bc368e8eabee"
 
-# ─── ২. DIRECT API ───
 API_1M = "https://draw.ar-lottery01.com/WinGo/WinGo_1M/GetHistoryIssuePage.json?t="
 
 PATTERN = [
@@ -38,25 +37,9 @@ def send_telegram(message):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
     payload = {"chat_id": CHAT_ID, "text": message, "parse_mode": "Markdown"}
     try:
-        res = requests.post(url, json=payload, timeout=5)
-        if res.status_code == 200:
-            return res.json().get("result", {}).get("message_id")
-    except Exception as e:
-        print("Telegram Send Error:", e)
-    return None
-
-def edit_telegram(message_id, message):
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/editMessageText"
-    payload = {
-        "chat_id": CHAT_ID,
-        "message_id": message_id,
-        "text": message,
-        "parse_mode": "Markdown"
-    }
-    try:
         requests.post(url, json=payload, timeout=5)
     except Exception as e:
-        print("Telegram Edit Error:", e)
+        print("Telegram Error:", e)
 
 def get_vip_prediction():
     now = datetime.now(timezone.utc)
@@ -81,7 +64,7 @@ def fetch_real_result():
         raw_url = API_1M + str(int(time.time() * 1000))
         proxy_url = f"http://api.scraperapi.com?api_key={SCRAPER_API_KEY}&url={requests.utils.quote(raw_url)}"
         
-        res = requests.get(proxy_url, timeout=12)
+        res = requests.get(proxy_url, timeout=10)
         if res.status_code == 200:
             data = res.json()
             list_data = data.get("data", {}).get("list", [])
@@ -92,23 +75,21 @@ def fetch_real_result():
         print("Fetch Error:", e)
     return None, None
 
-# ─── GLOBAL STREAK COUNTERS ───
+# ─── GLOBAL COUNTERS ───
 total_wins = 0
 total_losses = 0
 current_win_streak = 0
 current_loss_streak = 0
 
-def check_result_in_background(msg_id, period_to_check, pred_signal, pred_num):
+def process_result_check(period_to_check, pred_signal):
     global total_wins, total_losses, current_win_streak, current_loss_streak
     
-    # পিরিয়ড শেষ হওয়ার পর রেজাল্ট চেক করা শুরু করবে (৫৮ সেকেন্ড ওয়েট)
-    time.sleep(58)
+    # ৫০ সেকেন্ড ওয়েট করে রেজাল্ট ডাটা রিকোয়েস্ট করা শুরু করবে
+    time.sleep(50)
     
-    retry_count = 0
-    while retry_count < 12:
+    for _ in range(10):
         real_period, actual_num = fetch_real_result()
         
-        # পিরিয়ড ম্যাচ হলে একই মেসেজ EDIT করবে
         if real_period and real_period[-5:] == period_to_check[-5:]:
             actual_size = "BIG" if actual_num >= 5 else "SMALL"
             is_win = (pred_signal == actual_size)
@@ -127,27 +108,20 @@ def check_result_in_background(msg_id, period_to_check, pred_signal, pred_num):
             total_games = total_wins + total_losses
             win_rate = (total_wins / total_games) * 100 if total_games > 0 else 0
             
-            updated_msg = (
-                f"⚡ *ANSH BOSS VIP PREDICTION*\n"
-                f"⏱️ *Mode:* 1 Minute Wingo\n"
+            res_msg = (
+                f"🎯 *RESULT UPDATE*\n"
                 f"🆔 *Period:* `{period_to_check[-5:]}`\n"
-                f"🔮 *Prediction:* `{pred_signal}` (Num: {pred_num})\n"
-                f"───────────────\n"
-                f"🎰 *Actual Result:* `{actual_num}` ({actual_size})\n"
-                f"📌 *Status:* *{status_str}*\n"
+                f"🎰 *Actual Number:* `{actual_num}` ({actual_size})\n"
+                f"📌 *Result:* *{status_str}*\n"
                 f"📊 *Win Rate:* `{win_rate:.1f}%` ({total_wins}W / {total_losses}L)"
             )
-            
-            if msg_id:
-                edit_telegram(msg_id, updated_msg)
+            send_telegram(res_msg)
             break
             
         time.sleep(2)
-        retry_count += 1
 
-# ─── MAIN BOT LOOP ───
+# ─── MAIN LOOP ───
 current_period = None
-
 send_telegram("🚀 *ANSH BOSS VIP PREDICTOR ACTIVATED!*")
 
 while True:
@@ -164,11 +138,11 @@ while True:
                 f"🔮 *Prediction:* `{pred_signal}` (Num: {pred_num})\n"
                 f"⏳ *Status:* Result Awaiting..."
             )
-            msg_id = send_telegram(msg)
+            send_telegram(msg)
 
             threading.Thread(
-                target=check_result_in_background, 
-                args=(msg_id, current_period, pred_signal, pred_num), 
+                target=process_result_check, 
+                args=(current_period, pred_signal), 
                 daemon=True
             ).start()
 
