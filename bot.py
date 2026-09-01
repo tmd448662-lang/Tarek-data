@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import threading
 
-# ─── DUMMY WEB SERVER FOR RENDER FREE TIER ───
+# ─── DUMMY WEB SERVER FOR RENDER ───
 class HealthCheckHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
@@ -77,9 +77,55 @@ def fetch_real_result():
         print("Fetch Error:", e)
     return None, None
 
+# ─── GLOBAL VARIABLES FOR STREAK ───
+total_wins = 0
+total_losses = 0
+current_win_streak = 0
+current_loss_streak = 0
+
+def check_result_in_background(period_to_check, pred_signal):
+    global total_wins, total_losses, current_win_streak, current_loss_streak
+    
+    # পিরিয়ডের খেলা শেষ হওয়া পর্যন্ত অপেক্ষা (মিনিট শেষ হওয়ার ৫ সেকেন্ড আগে ট্রাই শুরু করবে)
+    time.sleep(45)
+    
+    retry_count = 0
+    while retry_count < 10:
+        real_period, actual_num = fetch_real_result()
+        
+        # পিরিয়ড মিলে গেলে রেজাল্ট প্রসেস করবে
+        if real_period and real_period[-5:] == period_to_check[-5:]:
+            actual_size = "BIG" if actual_num >= 5 else "SMALL"
+            is_win = (pred_signal == actual_size)
+            
+            if is_win:
+                total_wins += 1
+                current_win_streak += 1
+                current_loss_streak = 0  # Loss রিসেট
+                status_str = f"🟢 WIN {current_win_streak}!"
+            else:
+                total_losses += 1
+                current_loss_streak += 1
+                current_win_streak = 0  # Win রিসেট
+                status_str = f"🔴 LOSS {current_loss_streak}!"
+            
+            total_games = total_wins + total_losses
+            win_rate = (total_wins / total_games) * 100 if total_games > 0 else 0
+            
+            res_msg = (
+                f"🎯 *RESULT UPDATE*\n"
+                f"🆔 *Period:* `{period_to_check[-5:]}`\n"
+                f"🎰 *Actual Number:* `{actual_num}` ({actual_size})\n"
+                f"📌 *Result:* *{status_str}*\n"
+                f"📊 *Win Rate:* `{win_rate:.1f}%` ({total_wins}W / {total_losses}L)"
+            )
+            send_telegram(res_msg)
+            break
+            
+        time.sleep(3)
+        retry_count += 1
+
 # ─── MAIN BOT LOOP ───
-wins = 0
-losses = 0
 current_period = None
 
 send_telegram("🚀 *ANSH BOSS VIP PREDICTOR ACTIVATED!*")
@@ -88,7 +134,7 @@ while True:
     try:
         period_id, pred_signal, pred_num = get_vip_prediction()
         
-        # ১. নতুন পিরিয়ড শুরু হওয়ার সাথে সাথে Prediction পাঠাবে
+        # নতুন পিরিয়ড আসার ১-২ সেকেন্ডের মধ্যেই মেসেজ পাঠাবে
         if period_id != current_period:
             current_period = period_id
             
@@ -101,41 +147,12 @@ while True:
             )
             send_telegram(msg)
 
-            # ২. রেজাল্ট আসার জন্য ৫০ সেকেন্ড অপেক্ষা করবে
-            time.sleep(50)
-
-            # ৩. রেজাল্ট ফেচ করবে (মিনিট শেষ হওয়া পর্যন্ত ট্রাই করবে)
-            retry_count = 0
-            while retry_count < 5:
-                real_period, actual_num = fetch_real_result()
-                
-                # যদি টার্গেট পিরিয়ডের রেজাল্ট ড্যাশবোর্ডে চলে আসে
-                if real_period and real_period[-5:] == current_period[-5:]:
-                    actual_size = "BIG" if actual_num >= 5 else "SMALL"
-                    is_win = (pred_signal == actual_size)
-                    
-                    if is_win:
-                        wins += 1
-                        status_str = "🟢 WIN!"
-                    else:
-                        losses += 1
-                        status_str = "🔴 LOSS!"
-                    
-                    total = wins + losses
-                    win_rate = (wins / total) * 100 if total > 0 else 0
-                    
-                    res_msg = (
-                        f"🎯 *RESULT UPDATE*\n"
-                        f"🆔 *Period:* `{current_period[-5:]}`\n"
-                        f"🎰 *Actual Number:* `{actual_num}` ({actual_size})\n"
-                        f"📌 *Result:* *{status_str}*\n"
-                        f"📊 *Win Rate:* `{win_rate:.1f}%` ({wins}W / {losses}L)"
-                    )
-                    send_telegram(res_msg)
-                    break
-                
-                time.sleep(3)
-                retry_count += 1
+            # রেজাল্ট চেক করার কাজ ব্যাকগ্রাউন্ডে পাঠিয়ে দেওয়া হলো
+            threading.Thread(
+                target=check_result_in_background, 
+                args=(current_period, pred_signal), 
+                daemon=True
+            ).start()
 
     except Exception as e:
         print("Loop error:", e)
