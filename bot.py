@@ -14,14 +14,13 @@ from telegram.ext import (
 
 # Configuration
 BOT_TOKEN = "8386058038:AAEwayH-C4AUr7L_tx6Ecz__xpIXnrekJw0"
-ADMIN_ID = 5012028880
 
-# Dummy Web Server to satisfy Render Port check
+# Dummy Web Server for Render
 web_app = Flask(__name__)
 
 @web_app.route('/')
 def home():
-    return "Bot is alive!"
+    return "Wingo Hack Tracker Auto Engine Alive!"
 
 def run_web():
     port = int(os.environ.get("PORT", 10000))
@@ -32,189 +31,148 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     level=logging.INFO
 )
-logger = logging.getLogger(__name__)
+logger = logger = logging.getLogger(__name__)
 
-# Global State tracking
-user_stats = {
-    "wins": 0,
-    "losses": 0,
-    "total": 0,
-    "streak": 0,
-    "level": 1
-}
-
-
-def generate_prediction():
-    """Simulates the DNA GOD MODE V4 prediction algorithm."""
-    period_id = random.randint(202609020000, 202609029999)
-    pred_type = random.choice(["BIG", "SMALL"])
-    confidence = round(random.uniform(85.0, 99.4), 1)
-    
-    if pred_type == "BIG":
-        core_num = random.choice([5, 6, 7, 8, 9])
-        color = "🔴 RED / 🟣 VIOLET" if core_num == 5 else "🔴 RED"
-    else:
-        core_num = random.choice([0, 1, 2, 3, 4])
-        color = "🟢 GREEN / 🟣 VIOLET" if core_num == 0 else "🟢 GREEN"
-        
-    return {
-        "period": period_id,
-        "type": pred_type,
-        "number": core_num,
-        "color": color,
-        "confidence": confidence,
-        "level": user_stats["level"]
-    }
+# Global Engine Variables
+is_running = False
+current_period = 10898
+wins = 48
+losses = 42
+jackpots = 11
+active_chats = set()
 
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handles /start command."""
-    user = update.effective_user
-    
-    welcome_text = (
-        f"🧬 **TITAN ULTRA PREDICTION CORE** 🧬\n"
-        f"__DNA GOD MODE V4 PROTOCOL__\n\n"
-        f"👤 **User Identity:** {user.first_name}\n"
-        f"🆔 **ID:** `{user.id}`\n"
-        f"🔰 **Clearance:** `VIP GOD MODE`\n"
-        f"⚡ **System Status:** `ONLINE / 4ms LATENCY`\n\n"
-        f"Select an operation below to generate signals or inspect system metrics:"
-    )
+    global is_running
+    chat_id = update.effective_chat.id
+    active_chats.add(chat_id)
     
     keyboard = [
-        [InlineKeyboardButton("⚡ GENERATE SIGNAL", callback_data="get_signal")],
-        [
-            InlineKeyboardButton("📊 ENGINE STATS", callback_data="get_stats"),
-            InlineKeyboardButton("⚙️ ALGO LOGIC", callback_data="get_algo")
-        ],
-        [InlineKeyboardButton("🔄 RESET HISTORY CACHE", callback_data="reset_cache")]
+        [InlineKeyboardButton("🚀 START AUTO SIGNALS", callback_data="start_signals")],
+        [InlineKeyboardButton("🛑 STOP SIGNALS", callback_data="stop_signals")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    if update.message:
-        await update.message.reply_text(welcome_text, parse_mode="Markdown", reply_markup=reply_markup)
-    else:
-        await update.callback_query.edit_message_text(welcome_text, parse_mode="Markdown", reply_markup=reply_markup)
+    welcome_text = (
+        f"🔥 **HYBRID HACKED PRO 1M ENGINE** 🔥\n"
+        f"━━━━━━━━━━━━━━━━━━━━━\n"
+        f"⚡ **Status:** `ENGINE READY`\n"
+        f"⏱️ **Mode:** `1 Min Wingo Auto-Loop`\n\n"
+        f"অটোমেটিক সিগন্যাল লুপ চালু করতে নিচের **START** বাটনে ক্লিক করুন।"
+    )
+    
+    await update.message.reply_text(welcome_text, parse_mode="Markdown", reply_markup=reply_markup)
 
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handles inline button interactions."""
-    global user_stats
-
+    """Handles Start/Stop Button Clicks."""
+    global is_running
     query = update.callback_query
     await query.answer()
     
-    data = query.data
+    chat_id = query.message.chat_id
     
-    if data == "get_signal":
-        pred = generate_prediction()
+    if query.data == "start_signals":
+        if not is_running:
+            is_running = True
+            await query.edit_message_text("✅ **AUTO SIGNAL ENGINE STARTED!**\nঅটোমেটিক সিগন্যাল পাঠানো শুরু হচ্ছে...")
+            # Start background auto loop
+            asyncio.create_task(auto_signal_loop(context.application, chat_id))
+        else:
+            await query.edit_message_text("⚠️ **Engine turns already running!**")
+            
+    elif query.data == "stop_signals":
+        is_running = False
+        await query.edit_message_text("🛑 **AUTO SIGNAL ENGINE STOPPED.**")
+
+
+async def auto_signal_loop(app, chat_id):
+    """Main 1-Minute Auto Loop for Predictions and Results."""
+    global current_period, wins, losses, jackpots, is_running
+    
+    while is_running:
+        current_period += 1
         
-        signal_text = (
-            f"🧬 **TITAN VIP DNA V4 SIGNAL** 🧬\n"
-            f"━━━━━━━━━━━━━━━━━━━━━\n"
-            f"🎯 **TARGET PERIOD:** `{pred['period']}`\n"
-            f"🔥 **PREDICTION:** `{pred['type']}`\n"
-            f"💎 **EMISSION VALUE:** `{pred['number']}`\n"
-            f"🎨 **COLOR MATRIX:** {pred['color']}\n"
-            f"📊 **CONFIDENCE:** `{pred['confidence']}%`\n"
-            f"⚠️ **SAFETY LEVEL:** `LEVEL {pred['level']}`\n"
-            f"━━━━━━━━━━━━━━━━━━━━━\n"
-            f"🚀 **STATUS:** `ENGINE LINK CONFIRMED`"
+        # 1. Generate Prediction Parameters
+        pred_type = random.choice(["BIG", "SMALL"])
+        if pred_type == "BIG":
+            pred_num = random.choice([5, 6, 7, 8, 9])
+        else:
+            pred_num = random.choice([0, 1, 2, 3, 4])
+            
+        confidence = random.randint(75, 88)
+        
+        # 2. Format and Send Prediction Message
+        pred_text = (
+            f"🔥 **HYBRID HACKED PRO 1M**\n"
+            f"⏱️ **Mode:** 1 Min Wingo\n"
+            f"🆔 **Period:** {current_period}\n"
+            f"🔮 **Prediction:** {pred_type} (Num: {pred_num})\n"
+            f"⚡ **Confidence:** {confidence}%\n"
+            f"🧠 **Engine:** MAJORITY VOTE\n"
+            f"⏳ **Status:** Result Awaiting..."
         )
         
-        keyboard = [
-            [
-                InlineKeyboardButton("✅ WIN", callback_data="res_win"),
-                InlineKeyboardButton("❌ LOSS", callback_data="res_loss")
-            ],
-            [InlineKeyboardButton("⚡ NEXT SIGNAL", callback_data="get_signal")],
-            [InlineKeyboardButton("🔙 MAIN MENU", callback_data="main_menu")]
-        ]
-        await query.edit_message_text(signal_text, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
+        try:
+            await app.bot.send_message(chat_id=chat_id, text=pred_text, parse_mode="Markdown")
+        except Exception as e:
+            logger.error(f"Error sending message: {e}")
+            break
+
+        # Wait 60 seconds for the period to complete
+        await asyncio.sleep(60)
+        if not is_running:
+            break
+
+        # 3. Generate Actual Game Result
+        actual_num = random.randint(0, 9)
+        actual_type = "BIG" if actual_num >= 5 else "SMALL"
         
-    elif data == "res_win":
-        user_stats["wins"] += 1
-        user_stats["total"] += 1
-        user_stats["streak"] = user_stats["streak"] + 1 if user_stats["streak"] >= 0 else 1
-        user_stats["level"] = 1
+        is_win = (pred_type == actual_type)
         
-        await query.edit_message_text(
-            f"🎉 **MATCH TARGET WIN REGISTERED!**\n\n"
-            f"Wins: `{user_stats['wins']}` | Total: `{user_stats['total']}`\n"
-            f"Current Strategy Level reset to: `LEVEL 1`",
-            parse_mode="Markdown",
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⚡ NEXT SIGNAL", callback_data="get_signal")]])
+        if is_win:
+            wins += 1
+            res_str = "🟢 WIN!"
+            if actual_num in [0, 5]:
+                jackpots += 1
+        else:
+            losses += 1
+            res_str = "🔴 LOSS!"
+
+        total_games = wins + losses
+        win_rate = round((wins / total_games) * 100, 1)
+
+        # 4. Format and Send Result Message
+        result_text = (
+            f"🎯 **RESULT UPDATE**\n"
+            f"🆔 **Period:** {current_period}\n"
+            f"🎰 **Actual Number:** {actual_num} ({actual_type})\n"
+            f"📌 **Result:** {res_str}\n"
+            f"📊 **Win Rate:** {win_rate}% ({wins}W / {losses}L)\n"
+            f"⭐ **Jackpots:** {jackpots}"
         )
 
-    elif data == "res_loss":
-        user_stats["losses"] += 1
-        user_stats["total"] += 1
-        user_stats["streak"] = user_stats["streak"] - 1 if user_stats["streak"] <= 0 else -1
-        user_stats["level"] = 3 if user_stats["level"] >= 3 else user_stats["level"] + 1
-        
-        await query.edit_message_text(
-            f"❌ **LOSS REGISTERED - BYPASS ENGAGED**\n\n"
-            f"Losses: `{user_stats['losses']}` | Total: `{user_stats['total']}`\n"
-            f"Martingale Level elevated to: `LEVEL {user_stats['level']}`",
-            parse_mode="Markdown",
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⚡ RECOVERY SIGNAL", callback_data="get_signal")]])
-        )
-
-    elif data == "get_stats":
-        accuracy = round((user_stats["wins"] / user_stats["total"] * 100), 1) if user_stats["total"] > 0 else 100.0
-        
-        stats_text = (
-            f"📊 **SERVER DATABASE AUDIT LOG**\n"
-            f"━━━━━━━━━━━━━━━━━━━━━\n"
-            f"🟢 **WIN DECODE:** `{user_stats['wins']}`\n"
-            f"🔴 **LOSS BYPASS:** `{user_stats['losses']}`\n"
-            f"🔄 **CYCLES RUN:** `{user_stats['total']}`\n"
-            f"⚡ **STREAK LOG:** `{user_stats['streak']}`\n"
-            f"🎯 **DYNAMIC ACCURACY:** `{accuracy}%`\n"
-            f"🛡️ **ACTIVE MARTINGALE:** `LEVEL {user_stats['level']}`\n"
-            f"━━━━━━━━━━━━━━━━━━━━━"
-        )
-        keyboard = [[InlineKeyboardButton("🔙 MAIN MENU", callback_data="main_menu")]]
-        await query.edit_message_text(stats_text, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
-
-    elif data == "get_algo":
-        algo_text = (
-            f"⚙️ **STRUCTURAL EQUATION METRICS**\n"
-            f"━━━━━━━━━━━━━━━━━━━━━\n"
-            f"📐 **ALGORITHM CORE:**\n"
-            f"`Value = [(∑ PeriodDigits × 8) + (Last4Digits mod 7) + (PrevRound × 3)] mod 10`\n\n"
-            f"🪞 **COUNTER BALANCER MIRROR:**\n"
-            f"If `Round_n ≡ Round_n-1`, multi-stage inversion triggers for 5 operational rounds.\n\n"
-            f"🎯 **CLASSIFICATION MATRIX:**\n"
-            f"• `{0, 5}` ➔ VIOLET CORES (JACKPOT)\n"
-            f"• `{6, 8}` ➔ RED / BIG\n"
-            f"• `{1, 3, 7, 9}` ➔ GREEN / SMALL\n"
-            f"• `{2, 4}` ➔ RED / SMALL"
-        )
-        keyboard = [[InlineKeyboardButton("🔙 MAIN MENU", callback_data="main_menu")]]
-        await query.edit_message_text(algo_text, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
-
-    elif data == "reset_cache":
-        user_stats = {"wins": 0, "losses": 0, "total": 0, "streak": 0, "level": 1}
-        await query.edit_message_text(
-            "⚠️ **TRANSMISSION ERASED DONE**\nHistory cache cleared successfully.",
-            parse_mode="Markdown",
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 MAIN MENU", callback_data="main_menu")]])
-        )
-
-    elif data == "main_menu":
-        await start_command(update, context)
+        try:
+            await app.bot.send_message(chat_id=chat_id, text=result_text, parse_mode="Markdown")
+        except Exception as e:
+            logger.error(f"Error sending result: {e}")
+            break
+            
+        # Small delay before triggering next period loop
+        await asyncio.sleep(2)
 
 
 def main():
-    """Starts the Flask server in a thread and runs the Telegram bot."""
+    """Starts Flask and Telegram Bot Application."""
     threading.Thread(target=run_web, daemon=True).start()
 
     app = Application.builder().token(BOT_TOKEN).build()
+
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(CallbackQueryHandler(button_handler))
 
-    logger.info("Titan DNA God Mode V4 Bot running...")
+    logger.info("Wingo Hack Tracker Auto Bot Running...")
     app.run_polling()
 
 
