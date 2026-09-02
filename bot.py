@@ -8,7 +8,7 @@ from telegram import Bot
 BOT_TOKEN = "8386058038:AAEwayH-C4AUr7L_tx6Ecz__xpIXnrekJw0"  
 CHAT_ID = "5012028880"  
 
-# HTML কোড থেকে নেওয়া মূল প্যাটার্ন লজিক
+# HTML কোড থেকে নেওয়া মূল প্যাটার্ন লজিক
 PATTERN_LOGIC = {
     "0+0":"BIG","0+1":"BIG","0+2":"BIG","0+3":"BIG","0+4":"BIG","0+5":"BIG","0+6":"BIG","0+7":"BIG","0+8":"BIG","0+9":"BIG",
     "1+0":"SMALL","1+1":"SMALL","1+2":"SMALL","1+3":"SMALL","1+4":"SMALL","1+5":"SMALL","1+6":"SMALL","1+7":"SMALL","1+8":"SMALL","1+9":"SMALL",
@@ -24,9 +24,11 @@ PATTERN_LOGIC = {
 
 bot = Bot(token=BOT_TOKEN)
 
-# ট্র্যাকিং ভ্যারিয়েবল
+# নতুন করে ট্র্যাকিং শুরু (0 থেকে কাউন্ট)
 last_predicted_period = None
 last_predicted_signal = None
+total_wins = 0
+total_losses = 0
 
 def get_sifat_signal(history_list):
     if not history_list or len(history_list) < 2:
@@ -47,12 +49,12 @@ def fetch_api_data():
     return []
 
 async def prediction_bot():
-    global last_predicted_period, last_predicted_signal
-    print("Bot Signal Loop Started...")
+    global last_predicted_period, last_predicted_signal, total_wins, total_losses
+    print("30S Wingo Predictor Bot Started...")
 
     while True:
         try:
-            # ৩০ সেকেন্ডের সাইকেল মেলানো (ড্র শেষ হওয়ার ২ সেকেন্ড পর রিফ্রেশ)
+            # ৩০ সেকেন্ডের সাইকেল হিসাব (ড্র শেষ হওয়ার ২ সেকেন্ড পর রিফ্রেশ)
             current_sec = int(time.time()) % 30
             sleep_time = 30 - current_sec + 2  
             await asyncio.sleep(sleep_time)
@@ -62,47 +64,52 @@ async def prediction_bot():
                 continue
 
             latest_issue = str(history[0]['issueNumber'])
-            actual_num = int(history[0]['number'])
+                actual_num = int(history[0]['number'])
             actual_bs = "BIG" if actual_num >= 5 else "SMALL"
 
-            # ১. আগের প্রেডিকশনের রেজাল্ট পাঠানো (Result First)
+            # ১. আগের প্রেডিকশনের রেজাল্ট পাঠানো (Result Update First)
             if last_predicted_period == latest_issue and last_predicted_signal:
                 is_win = (last_predicted_signal == actual_bs)
-                status_emoji = "✅ WIN" if is_win else "❌ LOSS"
+                if is_win:
+                    total_wins += 1
+                    status_str = "🟢 WIN 1!"
+                else:
+                    total_losses += 1
+                    status_str = "🔴 LOSS"
+                
+                total_games = total_wins + total_losses
+                win_rate = (total_wins / total_games * 100) if total_games > 0 else 0.0
                 
                 result_msg = (
-                    f"📊 **LAST RESULT**\n\n"
-                    f"🔹 **Period:** #{latest_issue[-4:]}\n"
-                    f"🎯 **Result:** {actual_bs} ({actual_num})\n"
-                    f"🏆 **Status:** {status_emoji}\n"
-                    f"----------------------------"
+                    f"🎯 RESULT UPDATE\n"
+                    f"🆔 Period: {latest_issue[-5:]}\n"
+                    f"🎰 Actual Number: {actual_num} ({actual_bs})\n"
+                    f"📌 Result: {status_str}\n"
+                    f"📊 Win Rate: {win_rate:.1f}% ({total_wins}W / {total_losses}L)"
                 )
-                await bot.send_message(chat_id=CHAT_ID, text=result_msg, parse_mode="Markdown")
+                await bot.send_message(chat_id=CHAT_ID, text=result_msg)
                 await asyncio.sleep(1) # ১ সেকেন্ড বিরতি
 
-            # ২. নতুন সিগন্যাল পাঠানো (Prediction Signal)
+            # ২. নতুন পোঁডের জন্য নতুন প্রেডিকশন দেওয়া (New Prediction)
             next_period = str(int(latest_issue) + 1)
             new_signal = get_sifat_signal(history)
 
-            # নম্বর প্রেডিকশন
             if new_signal == "BIG":
                 suggested_num = random.choice([5, 6, 7, 8, 9])
             else:
                 suggested_num = random.choice([0, 1, 2, 3, 4])
 
-            # ডাটা আপডেট
             last_predicted_period = next_period
             last_predicted_signal = new_signal
 
             prediction_msg = (
-                f"👑 **OWNER RAKIB VAI PREDICTION** 👑\n\n"
-                f"🎲 **Game:** WinGo 30S\n"
-                f"📌 **Period ID:** #{next_period[-7:]}\n"
-                f"🔥 **Signal:** `{new_signal}`\n"
-                f"🔢 **Suggested Num:** `{suggested_num}`\n\n"
-                f"⏳ *Wait for result in 30 seconds...*"
+                f"⚡ PREDICTION\n"
+                f"⏱️ Mode: 30S Wingo\n"
+                f"🆔 Period: {next_period[-5:]}\n"
+                f"🔮 Prediction: {new_signal} (Num: {suggested_num})\n"
+                f"⏳ Status: Result Awaiting..."
             )
-            await bot.send_message(chat_id=CHAT_ID, text=prediction_msg, parse_mode="Markdown")
+            await bot.send_message(chat_id=CHAT_ID, text=prediction_msg)
 
         except Exception as e:
             print(f"Loop Error: {e}")
