@@ -25,137 +25,79 @@ BOT_TOKEN = "8386058038:AAEwayH-C4AUr7L_tx6Ecz__xpIXnrekJw0"
 CHAT_ID = "5012028880"  
 SCRAPER_API_KEY = "809f9c620ed6b5fe5a72bc368e8eabee"
 
+# 1 MINUTE WINGO API
 RAW_API = "https://draw.ar-lottery01.com/WinGo/WinGo_1M/GetHistoryIssuePage.json?ts="
 
 bot = Bot(token=BOT_TOKEN)
 
 total_wins = 0
 total_losses = 0
-jackpots = 0
+total_jackpots = 0
 loss_streak = 0
 
 last_predicted_period = None
 last_predicted_signal = None
 last_predicted_num = None
 
-# ==================== EXACT WEB ENGINE ALGORITHMS ====================
+# ==================== WEB ENGINES ====================
 
-def compute_advanced_exact(data):
-    """
-    ওয়েবসাইটের JS-এর EXACT ADVANCED ইঞ্জিন
-    Weighted scoring with [9,7,5,3,2,1,1,1]
-    """
-    if len(data) < 8:
-        return "BIG", 87
-    
-    weights = [9, 7, 5, 3, 2, 1, 1, 1]
-    score = 0
-    
-    for i in range(min(8, len(data))):
-        if data[i]['number'] >= 5:
-            score += weights[i]
-        else:
-            score -= weights[i]
-    
-    # Positive = BIG, Negative = SMALL
-    pred = "BIG" if score >= 0 else "SMALL"
-    
-    # Dynamic confidence based on score magnitude
-    abs_score = abs(score)
-    if abs_score >= 15:
-        conf = 95
-    elif abs_score >= 10:
-        conf = 87
-    elif abs_score >= 5:
-        conf = 84
-    else:
-        conf = 76
-    
-    return pred, conf
-
-def compute_core_exact(data):
-    if not data:
-        return "BIG", 76
-    
-    sides = [x['side'] for x in data]
-    last = sides[0]
-    streak = 0
-    for s in sides:
-        if s == last:
-            streak += 1
-        else:
-            break
-    
-    if streak >= 5:
-        return last, 90
-    
-    # Reversal
-    pred = "SMALL" if last == "BIG" else "BIG"
-    return pred, 76
-
-def compute_smart_exact(data):
-    if len(data) < 4:
-        return "SMALL", 75
-    
-    sides = [x['side'] for x in data[:4]]
-    
-    # Mirror Pattern (ABBA)
-    if sides[0] == sides[3] and sides[1] == sides[2]:
-        pred = "SMALL" if sides[0] == "BIG" else "BIG"
-        return pred, 92
-    
-    return "SMALL", 75
-
-def compute_hybrid_exact(data):
-    if len(data) < 5:
-        return "BIG", 73
-    
-    math_num = (data[0]['number'] + data[1]['number']) % 10
-    pred = "BIG" if math_num >= 5 else "SMALL"
-    return pred, 82
-
-def compute_master_exact(data):
-    if len(data) < 8:
-        return "BIG", 73
-    
-    # Weighted voting
-    score = 0
-    for i in range(min(8, len(data))):
-        if data[i]['number'] >= 5:
-            score += (8 - i)
-        else:
-            score -= (8 - i)
-    
-    pred = "BIG" if score >= 0 else "SMALL"
-    return pred, 95
-
-def compute_ultimate_exact(data):
-    if len(data) < 8:
-        return "BIG", 70
-    
-    big_count = sum(1 for x in data[:8] if x['number'] >= 5)
-    pred = "BIG" if big_count >= 4 else "SMALL"
-    return pred, 70
-
-# ==================== PREDICTION SYSTEM ====================
-
-def generate_numbers(side, data):
+def generate_numbers(side, history_list):
     freq = [0] * 10
-    for x in data[:12]:
+    for x in history_list:
         freq[x['number']] += 1
     
-    if side == "BIG":
-        pool = [5, 6, 7, 8, 9]
-        pool.sort(key=lambda x: freq[x])
-        return pool[0] if pool else 7
-    else:
-        pool = [0, 1, 2, 3, 4]
-        pool.sort(key=lambda x: freq[x])
-        return pool[0] if pool else 2
+    big_pool = [5, 6, 7, 8, 9]
+    small_pool = [0, 1, 2, 3, 4]
 
-def predict_hybrid_engine(history_list):
+    big_pool.sort(key=lambda x: freq[x])
+    small_pool.sort(key=lambda x: freq[x])
+
+    return big_pool[0] if side == "BIG" else small_pool[0]
+
+def compute_rifu(data):
+    if not data: return {"side": "BIG", "confidence": 76}
+    sides = [x['side'] for x in data]
+    last = sides[0]
+    streak = sum(1 for s in sides if s == last)
+    if streak >= 5: return {"side": last, "confidence": 90}
+    return {"side": "BIG" if last == "SMALL" else "SMALL", "confidence": 76}
+
+def compute_smart(data):
+    if len(data) < 4: return {"side": "SMALL", "confidence": 92}
+    sides = [x['side'] for x in data[:4]]
+    if sides[0] == sides[3] and sides[1] == sides[2]:
+        return {"side": "SMALL" if sides[0] == "BIG" else "BIG", "confidence": 92}
+    return {"side": "SMALL", "confidence": 92}
+
+def compute_hybrid(data):
+    if len(data) < 5: return {"side": "BIG", "confidence": 74}
+    math_num = (data[0]['number'] + data[1]['number']) % 10
+    return {"side": "BIG" if math_num >= 5 else "SMALL", "confidence": 74}
+
+def compute_master(data):
+    if len(data) < 8: return {"side": "SMALL", "confidence": 68}
+    score = sum((1 if x['number'] >= 5 else -1) for x in data[:5])
+    pred = "BIG" if score >= 0 else "SMALL"
+    return {"side": pred, "confidence": 68}
+
+def compute_advanced(data):
+    if len(data) < 8: return {"side": "SMALL", "confidence": 85}
+    weights = [9, 7, 5, 3, 2, 1, 1, 1]
+    score = sum((1 if data[i]['side'] == "BIG" else -1) * weights[i] for i in range(min(len(data), 8)))
+    pred = "BIG" if score >= 0 else "SMALL"
+    return {"side": pred, "confidence": 85}
+
+def compute_ultimate(data):
+    if len(data) < 8: return {"side": "BIG", "confidence": 78}
+    # ULTIMATE ইঞ্জিন রিভার্স ট্রেন্ড ফলো করে
+    recent_bigs = sum(1 for x in data[:5] if x['side'] == "BIG")
+    pred = "BIG" if recent_bigs >= 3 else "SMALL"
+    return {"side": pred, "confidence": 78}
+
+# ─── PREDICTION SYSTEM (DYNAMIC MATCHING) ───
+def predict_hybrid_engine(history_list, current_loss_streak):
     if not history_list:
-        return "BIG", 9, 87, "ADVANCED"
+        return "BIG", 9, 78, "ULTIMATE"
 
     mapped = []
     for item in history_list[:12]:
@@ -166,33 +108,30 @@ def predict_hybrid_engine(history_list):
             'side': "BIG" if num >= 5 else "SMALL"
         })
 
-    # ===== ওয়েবসাইটের EXACT অ্যালগরিদম =====
-    core_pred, core_conf = compute_core_exact(mapped)
-    smart_pred, smart_conf = compute_smart_exact(mapped)
-    hybrid_pred, hybrid_conf = compute_hybrid_exact(mapped)
-    master_pred, master_conf = compute_master_exact(mapped)
-    advanced_pred, advanced_conf = compute_advanced_exact(mapped)
-    ultimate_pred, ultimate_conf = compute_ultimate_exact(mapped)
-
-    # ===== ইঞ্জিন কনফিডেন্স ম্যাপ =====
     engines = {
-        "CORE": {"side": core_pred, "conf": core_conf},
-        "SMART": {"side": smart_pred, "conf": smart_conf},
-        "HYBRID": {"side": hybrid_pred, "conf": hybrid_conf},
-        "MASTER": {"side": master_pred, "conf": master_conf},
-        "ADVANCED": {"side": advanced_pred, "conf": advanced_conf},
-        "ULTIMATE": {"side": ultimate_pred, "conf": ultimate_conf},
+        "CORE": compute_rifu(mapped),
+        "SMART": compute_smart(mapped),
+        "HYBRID": compute_hybrid(mapped),
+        "MASTER": compute_master(mapped),
+        "ADVANCED": compute_advanced(mapped),
+        "ULTIMATE": compute_ultimate(mapped)
     }
 
-    # ===== ওয়েবসাইটের মতো ADVANCED প্রায়োরিটি =====
-    selected_engine = "ADVANCED"
-    selected = engines[selected_engine]
-    
+    # ওয়েবসাইটের ইঞ্জিন ডাইনামিক সুইচিং লজিক
+    # লস স্ট্রীক বা ট্রেন্ড পরিবর্তনের ওপর ভিত্তি করে ইঞ্জিন সিলেক্ট হয়
+    if current_loss_streak > 0:
+        selected_engine_name = "ULTIMATE"
+    elif mapped[0]['side'] == mapped[1]['side']:
+        selected_engine_name = "ADVANCED"
+    else:
+        selected_engine_name = "MASTER"
+
+    selected = engines[selected_engine_name]
     final_side = selected['side']
-    confidence = selected['conf']
+    confidence = selected['confidence']
     suggested_num = generate_numbers(final_side, mapped)
 
-    return final_side, suggested_num, confidence, selected_engine
+    return final_side, suggested_num, confidence, selected_engine_name
 
 # ==================== API FETCHING ====================
 
@@ -226,9 +165,9 @@ def fetch_api_data():
 
 async def prediction_bot():
     global last_predicted_period, last_predicted_signal, last_predicted_num
-    global total_wins, total_losses, jackpots, loss_streak
+    global total_wins, total_losses, total_jackpots, loss_streak
 
-    print("🔥 HYBRID HACKED PRO 1M (EXACT WEB MATCH) BOT STARTED...")
+    print("🔥 HYBRID HACKED PRO 1M BOT STARTED...")
 
     while True:
         try:
@@ -244,18 +183,19 @@ async def prediction_bot():
             actual_num = int(history[0]['number'])
             actual_bs = "BIG" if actual_num >= 5 else "SMALL"
 
-            # ১. রেজাল্ট চেক
+            # ১. রেজাল্ট এবং জ্যাকপট ট্র্যাকিং
             if last_predicted_period == latest_issue and last_predicted_signal:
-                is_win = (last_predicted_signal == actual_bs)
-                is_jackpot = (actual_num == last_predicted_num)
+                is_side_win = (last_predicted_signal == actual_bs)
+                is_exact_num = (last_predicted_num == actual_num)
 
-                if is_jackpot:
-                    jackpots += 1
-                    status_str = "⭐ JACKPOT!"
-                elif is_win:
+                if is_side_win:
                     total_wins += 1
                     loss_streak = 0
-                    status_str = "🟢 WIN!"
+                    if is_exact_num:
+                        total_jackpots += 1
+                        status_str = "⭐ JACKPOT!"
+                    else:
+                        status_str = "🟢 WIN!"
                 else:
                     total_losses += 1
                     loss_streak += 1
@@ -270,13 +210,13 @@ async def prediction_bot():
                     f"🎰 *Actual Number:* `{actual_num}` ({actual_bs})\n"
                     f"📌 *Result:* *{status_str}*\n"
                     f"📊 *Win Rate:* `{win_rate:.1f}%` ({total_wins}W / {total_losses}L)\n"
-                    f"⭐ *Jackpots:* `{jackpots}`"
+                    f"⭐ *Jackpots:* `{total_jackpots}`"
                 )
                 await bot.send_message(chat_id=CHAT_ID, text=result_msg, parse_mode="Markdown")
                 await asyncio.sleep(1)
 
             # ২. নতুন প্রেডিকশন
-            signal, pred_num, conf, engine_used = predict_hybrid_engine(history)
+            signal, pred_num, conf, engine_used = predict_hybrid_engine(history, loss_streak)
             next_period = str(int(latest_issue) + 1)
 
             prediction_msg = (
