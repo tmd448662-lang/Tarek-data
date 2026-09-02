@@ -31,26 +31,27 @@ bot = Bot(token=BOT_TOKEN)
 
 total_wins = 0
 total_losses = 0
+jackpots = 0
 loss_streak = 0
 
 last_predicted_period = None
 last_predicted_signal = None
 last_predicted_num = None
 
-# ==================== EXACT WEB ADVANCED ENGINE ====================
+# ==================== EXACT WEB ENGINE ALGORITHMS ====================
 
 def compute_advanced_exact(data):
     """
-    ওয়েবসাইটের JS-এর EXACT ADVANCED ইঞ্জিন অ্যালগরিদম
+    ওয়েবসাইটের JS-এর EXACT ADVANCED ইঞ্জিন
+    Weighted scoring with [9,7,5,3,2,1,1,1]
     """
     if len(data) < 8:
         return "BIG", 87
     
-    # ওয়েবসাইটের অরিজিনাল ওয়েটেড স্কেলিং
     weights = [9, 7, 5, 3, 2, 1, 1, 1]
     score = 0
     
-    for i in range(8):
+    for i in range(min(8, len(data))):
         if data[i]['number'] >= 5:
             score += weights[i]
         else:
@@ -59,12 +60,18 @@ def compute_advanced_exact(data):
     # Positive = BIG, Negative = SMALL
     pred = "BIG" if score >= 0 else "SMALL"
     
-    # ওয়েবসাইটের মতো ৮৭% ফিক্সড
-    conf = 87
+    # Dynamic confidence based on score magnitude
+    abs_score = abs(score)
+    if abs_score >= 15:
+        conf = 95
+    elif abs_score >= 10:
+        conf = 87
+    elif abs_score >= 5:
+        conf = 84
+    else:
+        conf = 76
     
     return pred, conf
-
-# ==================== CORE ENGINE (MATCHES WEB) ====================
 
 def compute_core_exact(data):
     if not data:
@@ -82,11 +89,9 @@ def compute_core_exact(data):
     if streak >= 5:
         return last, 90
     
-    # Reversal: if last is BIG → predict SMALL, else BIG
+    # Reversal
     pred = "SMALL" if last == "BIG" else "BIG"
     return pred, 76
-
-# ==================== SMART ENGINE ====================
 
 def compute_smart_exact(data):
     if len(data) < 4:
@@ -97,11 +102,9 @@ def compute_smart_exact(data):
     # Mirror Pattern (ABBA)
     if sides[0] == sides[3] and sides[1] == sides[2]:
         pred = "SMALL" if sides[0] == "BIG" else "BIG"
-        return pred, 85
+        return pred, 92
     
     return "SMALL", 75
-
-# ==================== HYBRID ENGINE ====================
 
 def compute_hybrid_exact(data):
     if len(data) < 5:
@@ -109,43 +112,36 @@ def compute_hybrid_exact(data):
     
     math_num = (data[0]['number'] + data[1]['number']) % 10
     pred = "BIG" if math_num >= 5 else "SMALL"
-    return pred, 73
-
-# ==================== MASTER ENGINE ====================
+    return pred, 82
 
 def compute_master_exact(data):
     if len(data) < 8:
         return "BIG", 73
     
-    # ওয়েবসাইটের মতো সিম্পল স্কোর
+    # Weighted voting
     score = 0
     for i in range(min(8, len(data))):
         if data[i]['number'] >= 5:
-            score += 1
+            score += (8 - i)
         else:
-            score -= 1
+            score -= (8 - i)
     
     pred = "BIG" if score >= 0 else "SMALL"
-    conf = 73
-    return pred, conf
-
-# ==================== ULTIMATE ENGINE ====================
+    return pred, 95
 
 def compute_ultimate_exact(data):
     if len(data) < 8:
         return "BIG", 70
     
-    # সিম্পল ট্রেন্ড ফলো
     big_count = sum(1 for x in data[:8] if x['number'] >= 5)
     pred = "BIG" if big_count >= 4 else "SMALL"
-    conf = 70
-    return pred, conf
+    return pred, 70
 
-# ==================== PREDICTION SYSTEM (EXACT WEB MATCH) ====================
+# ==================== PREDICTION SYSTEM ====================
 
 def generate_numbers(side, data):
     freq = [0] * 10
-    for x in data:
+    for x in data[:12]:
         freq[x['number']] += 1
     
     if side == "BIG":
@@ -188,8 +184,7 @@ def predict_hybrid_engine(history_list):
         "ULTIMATE": {"side": ultimate_pred, "conf": ultimate_conf},
     }
 
-    # ===== ওয়েবসাইটের মতো ADVANCED কে প্রায়োরিটি =====
-    # ওয়েবসাইটে ADVANCED ইঞ্জিন ৮৭% দিয়ে সিলেক্ট হয়
+    # ===== ওয়েবসাইটের মতো ADVANCED প্রায়োরিটি =====
     selected_engine = "ADVANCED"
     selected = engines[selected_engine]
     
@@ -231,7 +226,7 @@ def fetch_api_data():
 
 async def prediction_bot():
     global last_predicted_period, last_predicted_signal, last_predicted_num
-    global total_wins, total_losses, loss_streak
+    global total_wins, total_losses, jackpots, loss_streak
 
     print("🔥 HYBRID HACKED PRO 1M (EXACT WEB MATCH) BOT STARTED...")
 
@@ -252,8 +247,12 @@ async def prediction_bot():
             # ১. রেজাল্ট চেক
             if last_predicted_period == latest_issue and last_predicted_signal:
                 is_win = (last_predicted_signal == actual_bs)
+                is_jackpot = (actual_num == last_predicted_num)
 
-                if is_win:
+                if is_jackpot:
+                    jackpots += 1
+                    status_str = "⭐ JACKPOT!"
+                elif is_win:
                     total_wins += 1
                     loss_streak = 0
                     status_str = "🟢 WIN!"
@@ -270,7 +269,8 @@ async def prediction_bot():
                     f"🆔 *Period:* `{latest_issue[-5:]}`\n"
                     f"🎰 *Actual Number:* `{actual_num}` ({actual_bs})\n"
                     f"📌 *Result:* *{status_str}*\n"
-                    f"📊 *Win Rate:* `{win_rate:.1f}%` ({total_wins}W / {total_losses}L)"
+                    f"📊 *Win Rate:* `{win_rate:.1f}%` ({total_wins}W / {total_losses}L)\n"
+                    f"⭐ *Jackpots:* `{jackpots}`"
                 )
                 await bot.send_message(chat_id=CHAT_ID, text=result_msg, parse_mode="Markdown")
                 await asyncio.sleep(1)
