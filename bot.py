@@ -2,7 +2,6 @@ import asyncio
 import time
 import requests
 import os
-from datetime import datetime, timezone
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import threading
 from telegram import Bot
@@ -26,12 +25,12 @@ BOT_TOKEN = "8386058038:AAEwayH-C4AUr7L_tx6Ecz__xpIXnrekJw0"
 CHAT_ID = "5012028880"  
 SCRAPER_API_KEY = "809f9c620ed6b5fe5a72bc368e8eabee"
 
-# 1 MINUTE WINGO API ONLY
+# 1 MINUTE WINGO API
 RAW_API = "https://draw.ar-lottery01.com/WinGo/WinGo_1M/GetHistoryIssuePage.json?ts="
 
 bot = Bot(token=BOT_TOKEN)
 
-# ট্র্যাকিং ভ্যারিয়েবল (জ্যাকপট আলাদা না রেখে শুধু Win ও Loss রাখা হয়েছে)
+# ট্র্যাকিং ভ্যারিয়েবল (জ্যাকপট আলাদা না রেখে সাধারণ Win-এ যুক্ত)
 total_wins = 0
 total_losses = 0
 loss_streak = 0
@@ -40,7 +39,7 @@ last_predicted_period = None
 last_predicted_signal = None
 last_predicted_num = None
 
-# ==================== EXACT HTML / JS ENGINES IN PYTHON ====================
+# ==================== WEB MATCHED ENGINES ====================
 
 def generate_numbers(side, history_list):
     freq = [0] * 10
@@ -53,136 +52,55 @@ def generate_numbers(side, history_list):
     big_pool.sort(key=lambda x: freq[x])
     small_pool.sort(key=lambda x: freq[x])
 
-    numB = big_pool[0]
-    numS = small_pool[0]
+    return big_pool[0] if side == "BIG" else small_pool[0]
 
-    return numB, numS
-
-# 1. CORE (Rifu Pattern)
 def compute_rifu(data):
-    if not data:
-        return {"side": "BIG", "confidence": 70, "logic": "INIT"}
+    if not data: return {"side": "BIG", "confidence": 70}
     sides = [x['side'] for x in data]
     last = sides[0]
-
     streak = 0
     for s in sides:
         if s == last: streak += 1
         else: break
-    
-    if streak >= 5:
-        return {"side": last, "confidence": 90, "logic": "5+ STREAK"}
+    if streak >= 5: return {"side": last, "confidence": 90}
+    return {"side": "SMALL" if last == "BIG" else "BIG", "confidence": 76}
 
-    if len(sides) >= 3:
-        if sides[2] == "BIG" and sides[1] == "SMALL" and sides[0] == "BIG":
-            return {"side": "BIG", "confidence": 84, "logic": "3P-PATTERN"}
-        elif sides[2] == "SMALL" and sides[1] == "BIG" and sides[0] == "SMALL":
-            return {"side": "SMALL", "confidence": 84, "logic": "3P-PATTERN"}
-
-    big_count = sum(1 for s in sides[:5] if s == "BIG")
-    if big_count >= 4:
-        return {"side": "SMALL", "confidence": 76, "logic": "REVERSAL"}
-    elif big_count <= 1:
-        return {"side": "BIG", "confidence": 76, "logic": "REVERSAL"}
-
-    return {"side": "SMALL" if last == "BIG" else "BIG", "confidence": 72, "logic": "TREND"}
-
-# 2. SMART (Symmetry + Gap)
 def compute_smart(data):
-    if len(data) < 4:
-        return {"side": "BIG", "confidence": 45, "reason": "CALIBRATING"}
+    if len(data) < 4: return {"side": "BIG", "confidence": 75}
     sides = [x['side'] for x in data[:4]]
     if sides[0] == sides[3] and sides[1] == sides[2]:
-        p = "SMALL" if sides[0] == "BIG" else "BIG"
-        return {"side": p, "confidence": 92, "reason": "SYMMETRY"}
-    if all(x == sides[0] for x in sides):
-        return {"side": sides[0], "confidence": 85, "reason": "BOUNCE-TRAP"}
+        return {"side": "SMALL" if sides[0] == "BIG" else "BIG", "confidence": 75}
+    return {"side": "SMALL", "confidence": 75}
 
-    nums = [x['number'] for x in data[:15]]
-    missing = next((n for n in range(10) if n not in nums), None)
-    if missing is not None:
-        return {"side": "BIG" if missing >= 5 else "SMALL", "confidence": 75, "reason": "GAP"}
-
-    return {"side": "BIG", "confidence": 60, "reason": "FREQUENCY"}
-
-# 3. HYBRID
 def compute_hybrid(data):
-    if len(data) < 5:
-        return {"side": "BIG", "confidence": 50, "reason": "CALIBRATING"}
+    if len(data) < 5: return {"side": "BIG", "confidence": 69}
     math_num = (data[0]['number'] + data[1]['number']) % 10
-    period_mod = int(data[0]['issueNumber'] or "0") % 3
-    
-    if period_mod == 1:
-        pred = "BIG" if math_num >= 5 else "SMALL"
-        reason = "MATH-SEQ"
-    else:
-        pred = "SMALL" if data[0]['side'] == "BIG" else "BIG"
-        reason = "TREND-REV"
+    return {"side": "BIG" if math_num >= 5 else "SMALL", "confidence": 69}
 
-    return {"side": pred, "confidence": 75, "reason": reason}
-
-# 4. MASTER
 def compute_master(data):
-    if len(data) < 10:
-        return {"side": "BIG", "confidence": 50, "reason": "INIT"}
-    votes = {"BIG": 0, "SMALL": 0}
+    if len(data) < 8: return {"side": "BIG", "confidence": 95}
     sides = [x['side'] for x in data[:4]]
-    if sides[0] == sides[3] and sides[1] == sides[2]:
-        votes["SMALL" if sides[0] == "BIG" else "BIG"] += 3
+    pred = "SMALL" if sides.count("BIG") >= 2 else "BIG"
+    return {"side": pred, "confidence": 95}
 
-    trend_score = sum((1 if x['number'] >= 5 else -1) * (8 - i) for i, x in enumerate(data[:8]))
-    votes["BIG" if trend_score > 0 else "SMALL"] += 2
-
-    pred = "BIG" if votes["BIG"] >= votes["SMALL"] else "SMALL"
-    conf = min(95, int((max(votes.values()) / max(sum(votes.values()), 1)) * 80 + 20))
-    return {"side": pred, "confidence": conf, "reason": "MULTI-VOTE"}
-
-# 5. ADVANCED
 def compute_advanced(data, current_loss_streak):
-    if len(data) < 10:
-        return {"side": "BIG", "confidence": 50, "reason": "CALIBRATING"}
-    votes = {"BIG": 0, "SMALL": 0}
-    sides = [x['side'] for x in data[:4]]
-    if sides[0] == sides[3] and sides[1] == sides[2]:
-        votes["SMALL" if sides[0] == "BIG" else "BIG"] += 3
+    if len(data) < 8: return {"side": "BIG", "confidence": 95}
+    # ওয়েবসাইটের Anti-loss Logic
+    sides = [x['side'] for x in data[:3]]
+    if sides.count("SMALL") == 3:
+        return {"side": "BIG", "confidence": 76}
+    elif sides.count("BIG") == 3:
+        return {"side": "SMALL", "confidence": 76}
+    return {"side": "BIG" if sides[0] == "SMALL" else "SMALL", "confidence": 95}
 
-    trend_score = sum((1 if x['number'] >= 5 else -1) * (8 - i) for i, x in enumerate(data[:8]))
-    votes["BIG" if trend_score > 0 else "SMALL"] += 2
-
-    if current_loss_streak >= 2:
-        counter = "SMALL" if votes["BIG"] >= votes["SMALL"] else "BIG"
-        votes[counter] += 2
-
-    pred = "BIG" if votes["BIG"] >= votes["SMALL"] else "SMALL"
-    conf = min(95, int(70 + (max(votes.values()) / max(sum(votes.values()), 1)) * 25 + current_loss_streak * 3))
-    return {"side": pred, "confidence": conf, "reason": "ADVANCED-VOTE"}
-
-# 6. ULTIMATE
 def compute_ultimate(data):
-    if len(data) < 8:
-        return {"side": "BIG", "confidence": 60, "reason": "INIT"}
-    votes = {"BIG": 0, "SMALL": 0}
-    sides = [x['side'] for x in data[:5]]
+    if len(data) < 8: return {"side": "BIG", "confidence": 76}
+    return {"side": "BIG", "confidence": 76}
 
-    if len(sides) == 5 and sides[0] == sides[4] and sides[1] == sides[3]:
-        votes["SMALL" if sides[0] == "BIG" else "BIG"] += 3
-
-    score = 0
-    weights = [8, 5, 3, 2, 1]
-    for i in range(min(len(data), 5)):
-        score += (1 if data[i]['number'] >= 5 else -1) * weights[i]
-    
-    votes["BIG" if score > 0 else "SMALL"] += 2
-    pred = "BIG" if votes["BIG"] >= votes["SMALL"] else "SMALL"
-    diff = abs(votes["BIG"] - votes["SMALL"])
-    
-    conf = 95 if diff >= 5 else (90 if diff >= 4 else (85 if diff >= 3 else 75))
-    return {"side": pred, "confidence": conf, "reason": "ULTIMATE-ADAPTIVE"}
-
-# ─── PREDICTION SYSTEM ───
+# ─── PREDICTION SYSTEM (EXACT WEB PRIORITY) ───
 def predict_hybrid_engine(history_list, streak):
     if not history_list:
-        return "BIG", 7, 75, "ULTIMATE"
+        return "BIG", 9, 76, "ADVANCED"
 
     mapped = []
     for item in history_list[:12]:
@@ -201,22 +119,25 @@ def predict_hybrid_engine(history_list, streak):
     ultimate = compute_ultimate(mapped)
 
     engines = {
+        "ADVANCED": advanced,
+        "MASTER": master,
         "CORE": rifu,
         "SMART": smart,
         "HYBRID": hybrid,
-        "MASTER": master,
-        "ADV": advanced,
         "ULTIMATE": ultimate
     }
 
-    best_engine = max(engines, key=lambda k: engines[k]['confidence'])
-    final_side = engines[best_engine]['side']
-    confidence = engines[best_engine]['confidence']
+    # ওয়েবসাইটের অগ্রাধিকার অনুযায়ী ADVANCED ইঞ্জিনকে প্রাধান্য দেওয়া হয়েছে
+    if streak >= 1 or mapped[0]['side'] == mapped[1]['side']:
+        best_engine_name = "ADVANCED"
+    else:
+        best_engine_name = "MASTER"
 
-    numB, numS = generate_numbers(final_side, mapped)
-    suggested_num = numB if final_side == "BIG" else numS
+    final_side = engines[best_engine_name]['side']
+    confidence = engines[best_engine_name]['confidence']
+    suggested_num = generate_numbers(final_side, mapped)
 
-    return final_side, suggested_num, confidence, best_engine
+    return final_side, suggested_num, confidence, best_engine_name
 
 # ==================== API FETCHING ====================
 
@@ -252,11 +173,10 @@ async def prediction_bot():
     global last_predicted_period, last_predicted_signal, last_predicted_num
     global total_wins, total_losses, loss_streak
 
-    print("🔥 HYBRID HACKED PRO (1 MINUTE WINGO) BOT STARTED...")
+    print("🔥 HYBRID HACKED PRO 1M MATCHED BOT STARTED...")
 
     while True:
         try:
-            # 1 MINUTE LOOP TIMER (৬ও সেকেন্ডের টাইমার সমন্বয়)
             current_sec = int(time.time()) % 60
             sleep_time = 60 - current_sec + 2  
             await asyncio.sleep(sleep_time)
@@ -269,7 +189,7 @@ async def prediction_bot():
             actual_num = int(history[0]['number'])
             actual_bs = "BIG" if actual_num >= 5 else "SMALL"
 
-            # ১. রেজাল্ট চেক ও আপডেট (Jackpot এবং সাধারণ Win উভয়ই একটি Win হিসেবে গণ্য হবে)
+            # ১. রেজাল্ট চেক ও কাউন্টিং (জ্যাকপট সাধারণ Win হিসেবে যুক্ত)
             if last_predicted_period == latest_issue and last_predicted_signal:
                 is_win = (last_predicted_signal == actual_bs)
 
