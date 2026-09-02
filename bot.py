@@ -63,16 +63,16 @@ def compute_rifu(data):
     return {"side": "BIG" if last == "SMALL" else "SMALL", "confidence": 76}
 
 def compute_smart(data):
-    if len(data) < 4: return {"side": "SMALL", "confidence": 92}
+    if len(data) < 4: return {"side": "SMALL", "confidence": 75}
     sides = [x['side'] for x in data[:4]]
     if sides[0] == sides[3] and sides[1] == sides[2]:
-        return {"side": "SMALL" if sides[0] == "BIG" else "BIG", "confidence": 92}
-    return {"side": "SMALL", "confidence": 92}
+        return {"side": "SMALL" if sides[0] == "BIG" else "BIG", "confidence": 85}
+    return {"side": "SMALL", "confidence": 75}
 
 def compute_hybrid(data):
-    if len(data) < 5: return {"side": "BIG", "confidence": 74}
+    if len(data) < 5: return {"side": "BIG", "confidence": 73}
     math_num = (data[0]['number'] + data[1]['number']) % 10
-    return {"side": "BIG" if math_num >= 5 else "SMALL", "confidence": 74}
+    return {"side": "BIG" if math_num >= 5 else "SMALL", "confidence": 73}
 
 def compute_master(data):
     if len(data) < 8: return {"side": "SMALL", "confidence": 68}
@@ -89,15 +89,14 @@ def compute_advanced(data):
 
 def compute_ultimate(data):
     if len(data) < 8: return {"side": "BIG", "confidence": 78}
-    # ULTIMATE ইঞ্জিন রিভার্স ট্রেন্ড ফলো করে
     recent_bigs = sum(1 for x in data[:5] if x['side'] == "BIG")
     pred = "BIG" if recent_bigs >= 3 else "SMALL"
     return {"side": pred, "confidence": 78}
 
-# ─── PREDICTION SYSTEM (DYNAMIC MATCHING) ───
-def predict_hybrid_engine(history_list, current_loss_streak):
+# ─── PREDICTION SYSTEM (MAJORITY VOTE + % TIE-BREAKER) ───
+def predict_hybrid_engine(history_list):
     if not history_list:
-        return "BIG", 9, 78, "ULTIMATE"
+        return "BIG", 9, 75, "MAJORITY VOTE"
 
     mapped = []
     for item in history_list[:12]:
@@ -108,30 +107,48 @@ def predict_hybrid_engine(history_list, current_loss_streak):
             'side': "BIG" if num >= 5 else "SMALL"
         })
 
-    engines = {
-        "CORE": compute_rifu(mapped),
-        "SMART": compute_smart(mapped),
-        "HYBRID": compute_hybrid(mapped),
-        "MASTER": compute_master(mapped),
-        "ADVANCED": compute_advanced(mapped),
-        "ULTIMATE": compute_ultimate(mapped)
-    }
+    # ৬টি ইঞ্জিনের আউটপুট গণনা
+    engines = [
+        compute_rifu(mapped),
+        compute_smart(mapped),
+        compute_hybrid(mapped),
+        compute_master(mapped),
+        compute_advanced(mapped),
+        compute_ultimate(mapped)
+    ]
 
-    # ওয়েবসাইটের ইঞ্জিন ডাইনামিক সুইচিং লজিক
-    # লস স্ট্রীক বা ট্রেন্ড পরিবর্তনের ওপর ভিত্তি করে ইঞ্জিন সিলেক্ট হয়
-    if current_loss_streak > 0:
-        selected_engine_name = "ULTIMATE"
-    elif mapped[0]['side'] == mapped[1]['side']:
-        selected_engine_name = "ADVANCED"
+    big_votes = 0
+    small_votes = 0
+    big_conf_sum = 0
+    small_conf_sum = 0
+
+    for eng in engines:
+        if eng['side'] == "BIG":
+            big_votes += 1
+            big_conf_sum += eng['confidence']
+        else:
+            small_votes += 1
+            small_conf_sum += eng['confidence']
+
+    # ১. মেজোরিটি ভোট ফিল্টার
+    if big_votes > small_votes:
+        final_side = "BIG"
+        avg_confidence = round(big_conf_sum / big_votes)
+    elif small_votes > big_votes:
+        final_side = "SMALL"
+        avg_confidence = round(small_conf_sum / small_votes)
     else:
-        selected_engine_name = "MASTER"
+        # ২. টাই-ব্রেকার (৩টি BIG এবং ৩টি SMALL হলে মোট % হিসাব)
+        if big_conf_sum >= small_conf_sum:
+            final_side = "BIG"
+            avg_confidence = round(big_conf_sum / 3)
+        else:
+            final_side = "SMALL"
+            avg_confidence = round(small_conf_sum / 3)
 
-    selected = engines[selected_engine_name]
-    final_side = selected['side']
-    confidence = selected['confidence']
     suggested_num = generate_numbers(final_side, mapped)
 
-    return final_side, suggested_num, confidence, selected_engine_name
+    return final_side, suggested_num, avg_confidence, "MAJORITY VOTE"
 
 # ==================== API FETCHING ====================
 
@@ -167,7 +184,7 @@ async def prediction_bot():
     global last_predicted_period, last_predicted_signal, last_predicted_num
     global total_wins, total_losses, total_jackpots, loss_streak
 
-    print("🔥 HYBRID HACKED PRO 1M BOT STARTED...")
+    print("🔥 HYBRID HACKED PRO 1M (MAJORITY VOTE) BOT STARTED...")
 
     while True:
         try:
@@ -215,8 +232,8 @@ async def prediction_bot():
                 await bot.send_message(chat_id=CHAT_ID, text=result_msg, parse_mode="Markdown")
                 await asyncio.sleep(1)
 
-            # ২. নতুন প্রেডিকশন
-            signal, pred_num, conf, engine_used = predict_hybrid_engine(history, loss_streak)
+            # ২. মেজোরিটি ভোট প্রেডিকশন
+            signal, pred_num, conf, engine_used = predict_hybrid_engine(history)
             next_period = str(int(latest_issue) + 1)
 
             prediction_msg = (
