@@ -20,7 +20,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# State tracking
+# Global State tracking
 user_stats = {
     "wins": 0,
     "losses": 0,
@@ -85,6 +85,8 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handles inline button interactions."""
+    global user_stats  # Declared at the very beginning of the function to avoid SyntaxError
+
     query = update.callback_query
     await query.answer()
     
@@ -179,7 +181,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text(algo_text, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
 
     elif data == "reset_cache":
-        global user_stats
         user_stats = {"wins": 0, "losses": 0, "total": 0, "streak": 0, "level": 1}
         await query.edit_message_text(
             "⚠️ **TRANSMISSION ERASED DONE**\nHistory cache cleared successfully.",
