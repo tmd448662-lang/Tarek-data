@@ -1,180 +1,315 @@
-import logging
-import random
 import asyncio
-import threading
+import time
+import requests
 import os
-from flask import Flask
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import (
-    Application,
-    CommandHandler,
-    CallbackQueryHandler,
-    ContextTypes,
-)
+from http.server import HTTPServer, BaseHTTPRequestHandler
+import threading
+from telegram import Bot
 
-# Configuration
-BOT_TOKEN = "8386058038:AAEwayH-C4AUr7L_tx6Ecz__xpIXnrekJw0"
+# ==================== RENDER/FREE WEB SERVICE PORT BINDING ====================
+class DummyServer(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"🔥 DARK X BHAI VIP BOT is running!")
 
-# Dummy Web Server for Render
-web_app = Flask(__name__)
+def run_dummy_server():
+    port = int(os.environ.get("PORT", 8080))
+    server = HTTPServer(('0.0.0.0', port), DummyServer)
+    server.serve_forever()
 
-@web_app.route('/')
-def home():
-    return "Wingo Hack Tracker Auto Engine Alive!"
+threading.Thread(target=run_dummy_server, daemon=True).start()
 
-def run_web():
-    port = int(os.environ.get("PORT", 10000))
-    web_app.run(host="0.0.0.0", port=port)
+# ==================== BOT CONFIGURATION ====================
+BOT_TOKEN = "8386058038:AAEwayH-C4AUr7L_tx6Ecz__xpIXnrekJw0"  
+CHAT_ID = "5012028880"  
+SCRAPER_API_KEY = "809f9c620ed6b5fe5a72bc368e8eabee"
 
-# Logging Setup
-logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    level=logging.INFO
-)
-logger = logger = logging.getLogger(__name__)
+RAW_API = "https://draw.ar-lottery01.com/WinGo/WinGo_1M/GetHistoryIssuePage.json"
 
-# Global Engine Variables
-is_running = False
-current_period = 10898
-wins = 48
-losses = 42
-jackpots = 11
-active_chats = set()
+bot = Bot(token=BOT_TOKEN)
 
+# ==================== STATS ====================
+total_wins = 0
+total_losses = 0
+jackpots = 0
+loss_streak = 0
+current_level = 1
+consecutive_losses = 0
+total_rounds = 0
 
-async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handles /start command."""
-    global is_running
-    chat_id = update.effective_chat.id
-    active_chats.add(chat_id)
+# Last prediction tracking
+last_predicted_period = None
+last_predicted_signal = None
+last_predicted_num = None
+
+# Flag to track if we've sent prediction for current period
+prediction_sent_for_period = {}
+
+# ==================== EXACT ALGORITHM ====================
+
+def run_algorithm(history_list):
+    """HTML-এর runAlgorithm ফাংশনের exact কপি"""
+    if not history_list or len(history_list) < 3:
+        return "BIG", 0.50, 5
     
-    keyboard = [
-        [InlineKeyboardButton("🚀 START AUTO SIGNALS", callback_data="start_signals")],
-        [InlineKeyboardButton("🛑 STOP SIGNALS", callback_data="stop_signals")]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
+    types = []
+    for h in history_list[:10]:
+        num = int(h['number'])
+        types.append("BIG" if num >= 5 else "SMALL")
     
-    welcome_text = (
-        f"🔥 **HYBRID HACKED PRO 1M ENGINE** 🔥\n"
-        f"━━━━━━━━━━━━━━━━━━━━━\n"
-        f"⚡ **Status:** `ENGINE READY`\n"
-        f"⏱️ **Mode:** `1 Min Wingo Auto-Loop`\n\n"
-        f"অটোমেটিক সিগন্যাল লুপ চালু করতে নিচের **START** বাটনে ক্লিক করুন।"
-    )
+    last1 = types[0] if len(types) > 0 else "BIG"
+    last2 = types[1] if len(types) > 1 else "BIG"
     
-    await update.message.reply_text(welcome_text, parse_mode="Markdown", reply_markup=reply_markup)
+    if last1 == "SMALL":
+        pred_type = "BIG"
+        confidence = 0.75
+    elif last1 == "BIG":
+        pred_type = "SMALL"
+        confidence = 0.60
+    else:
+        pred_type = "BIG"
+        confidence = 0.50
+    
+    if last1 == "BIG" and last2 == "BIG":
+        pred_type = "SMALL"
+        confidence = 0.90
+    elif last1 == "SMALL" and last2 == "SMALL":
+        pred_type = "BIG"
+        confidence = 0.95
+    elif last1 == "SMALL" and last2 == "BIG":
+        pred_type = "BIG"
+        confidence = 0.70
+    elif last1 == "BIG" and last2 == "SMALL":
+        pred_type = "BIG"
+        confidence = 0.85
+    
+    if current_level == 3:
+        latest_num = int(history_list[0]['number'])
+        pred_type = "SMALL" if latest_num >= 5 else "BIG"
+        confidence = 0.99
+    
+    import random
+    if pred_type == "BIG":
+        dna_value = random.randint(5, 9)
+    else:
+        dna_value = random.randint(0, 4)
+    
+    return pred_type, confidence, dna_value
 
-
-async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handles Start/Stop Button Clicks."""
-    global is_running
-    query = update.callback_query
-    await query.answer()
+def update_stats_on_result(actual_num, predicted_type):
+    global total_wins, total_losses, jackpots, loss_streak
+    global current_level, consecutive_losses, total_rounds
     
-    chat_id = query.message.chat_id
+    actual_type = "BIG" if actual_num >= 5 else "SMALL"
     
-    if query.data == "start_signals":
-        if not is_running:
-            is_running = True
-            await query.edit_message_text("✅ **AUTO SIGNAL ENGINE STARTED!**\nঅটোমেটিক সিগন্যাল পাঠানো শুরু হচ্ছে...")
-            # Start background auto loop
-            asyncio.create_task(auto_signal_loop(context.application, chat_id))
+    if predicted_type == actual_type:
+        if actual_num == 0 or actual_num == 5:
+            jackpots += 1
+            status = "⭐ JACKPOT!"
+            status_icon = "⭐"
         else:
-            await query.edit_message_text("⚠️ **Engine turns already running!**")
-            
-    elif query.data == "stop_signals":
-        is_running = False
-        await query.edit_message_text("🛑 **AUTO SIGNAL ENGINE STOPPED.**")
-
-
-async def auto_signal_loop(app, chat_id):
-    """Main 1-Minute Auto Loop for Predictions and Results."""
-    global current_period, wins, losses, jackpots, is_running
+            total_wins += 1
+            status = "✅ WIN!"
+            status_icon = "✅"
+        
+        loss_streak = 0 if loss_streak < 0 else loss_streak + 1
+        consecutive_losses = 0
+        current_level = 1
+    else:
+        total_losses += 1
+        loss_streak = -1 if loss_streak > 0 else loss_streak - 1
+        consecutive_losses += 1
+        current_level = 3 if current_level >= 3 else current_level + 1
+        status = "❌ LOSS!"
+        status_icon = "❌"
     
-    while is_running:
-        current_period += 1
-        
-        # 1. Generate Prediction Parameters
-        pred_type = random.choice(["BIG", "SMALL"])
-        if pred_type == "BIG":
-            pred_num = random.choice([5, 6, 7, 8, 9])
-        else:
-            pred_num = random.choice([0, 1, 2, 3, 4])
-            
-        confidence = random.randint(75, 88)
-        
-        # 2. Format and Send Prediction Message
-        pred_text = (
-            f"🔥 **HYBRID HACKED PRO 1M**\n"
-            f"⏱️ **Mode:** 1 Min Wingo\n"
-            f"🆔 **Period:** {current_period}\n"
-            f"🔮 **Prediction:** {pred_type} (Num: {pred_num})\n"
-            f"⚡ **Confidence:** {confidence}%\n"
-            f"🧠 **Engine:** MAJORITY VOTE\n"
-            f"⏳ **Status:** Result Awaiting..."
+    total_rounds += 1
+    return status, status_icon
+
+def get_martingale_info(level):
+    if level == 1:
+        return "1x"
+    elif level == 2:
+        return "3x"
+    else:
+        return "9x"
+
+# ==================== API FETCHING ====================
+
+def fetch_api_data():
+    timestamp = str(int(time.time() * 1000))
+    raw_url = RAW_API + "?t=" + timestamp
+    try:
+        res = requests.get(raw_url, timeout=4)
+        if res.status_code == 200:
+            data = res.json()
+            list_data = data.get("data", {}).get("list", [])
+            if list_data:
+                return list_data
+    except Exception:
+        pass
+    
+    try:
+        proxy_url = f"http://api.scraperapi.com?api_key={SCRAPER_API_KEY}&url={requests.utils.quote(raw_url)}"
+        res = requests.get(proxy_url, timeout=8)
+        if res.status_code == 200:
+            data = res.json()
+            list_data = data.get("data", {}).get("list", [])
+            if list_data:
+                return list_data
+    except Exception as e:
+        print("API Fetch Error:", e)
+    
+    return []
+
+# ==================== PREDICTION ====================
+
+def get_prediction(history_list):
+    if not history_list:
+        return "BIG", 50, 5, 1
+    
+    pred_type, confidence, dna_value = run_algorithm(history_list)
+    return pred_type, confidence, dna_value, current_level
+
+# ==================== MAIN BOT LOOP ====================
+
+async def prediction_bot():
+    global last_predicted_period, last_predicted_signal, last_predicted_num
+    global total_wins, total_losses, jackpots, loss_streak
+    global current_level, total_rounds, prediction_sent_for_period
+
+    print("🔥 DARK X BHAI VIP BOT STARTED...")
+    print("📡 Mode: 1 Min Wingo")
+    print("🔄 Checking API every 3 seconds")
+
+    # Send startup message
+    try:
+        await bot.send_message(
+            chat_id=CHAT_ID,
+            text="🔥 *DARK X BHAI VIP BOT ACTIVE*\n"
+                 "━━━━━━━━━━━━━━━━━━━━\n"
+                 "🧬 *Mode:* 1 Min Wingo\n"
+                 "🛡️ *Status:* ONLINE & SYNCED\n"
+                 "━━━━━━━━━━━━━━━━━━━━\n"
+                 "⏳ *Waiting for first signal...*",
+            parse_mode="Markdown"
         )
-        
+    except Exception as e:
+        print(f"Startup error: {e}")
+
+    while True:
         try:
-            await app.bot.send_message(chat_id=chat_id, text=pred_text, parse_mode="Markdown")
-        except Exception as e:
-            logger.error(f"Error sending message: {e}")
-            break
+            # Wait for next minute + 2 seconds
+            current_sec = int(time.time()) % 60
+            sleep_time = 60 - current_sec + 2
+            await asyncio.sleep(sleep_time)
 
-        # Wait 60 seconds for the period to complete
-        await asyncio.sleep(60)
-        if not is_running:
-            break
+            history = fetch_api_data()
+            if not history:
+                continue
 
-        # 3. Generate Actual Game Result
-        actual_num = random.randint(0, 9)
-        actual_type = "BIG" if actual_num >= 5 else "SMALL"
-        
-        is_win = (pred_type == actual_type)
-        
-        if is_win:
-            wins += 1
-            res_str = "🟢 WIN!"
-            if actual_num in [0, 5]:
-                jackpots += 1
-        else:
-            losses += 1
-            res_str = "🔴 LOSS!"
+            latest_issue = str(history[0]['issueNumber'])
+            actual_num = int(history[0]['number'])
+            actual_type = "BIG" if actual_num >= 5 else "SMALL"
 
-        total_games = wins + losses
-        win_rate = round((wins / total_games) * 100, 1)
+            # ============================================================
+            # STEP 1: CHECK RESULT for PREVIOUS PERIOD
+            # ============================================================
+            if last_predicted_period == latest_issue and last_predicted_signal is not None:
+                
+                # Update stats and get result
+                status, status_icon = update_stats_on_result(actual_num, last_predicted_signal)
+                
+                total_games = total_wins + total_losses
+                win_rate = (total_wins / total_games * 100) if total_games > 0 else 0.0
+                multiplier = get_martingale_info(current_level)
+                
+                # Build result message
+                result_msg = (
+                    f"🎯 *RESULT UPDATE*\n"
+                    f"━━━━━━━━━━━━━━━━━━━━\n"
+                    f"🆔 *Period:* `{latest_issue[-5:]}`\n"
+                    f"🎯 *Predicted:* `{last_predicted_signal}` → Num: `{last_predicted_num}`\n"
+                    f"🎰 *Actual:* `{actual_num}` ({actual_type})\n"
+                    f"📌 *Result:* *{status}*\n"
+                    f"━━━━━━━━━━━━━━━━━━━━\n"
+                    f"📊 *Win Rate:* `{win_rate:.1f}%` ({total_wins}W / {total_losses}L)\n"
+                    f"🔥 *Streak:* `{loss_streak}`\n"
+                    f"⚡ *Level:* `{current_level}` (Multiplier: {multiplier})\n"
+                    f"⭐ *Jackpots:* `{jackpots}`"
+                )
+                
+                try:
+                    await bot.send_message(chat_id=CHAT_ID, text=result_msg, parse_mode="Markdown")
+                    await asyncio.sleep(1)
+                except Exception as e:
+                    print(f"Result error: {e}")
+                
+                # Clear prediction for this period
+                last_predicted_period = None
+                last_predicted_signal = None
+                last_predicted_num = None
 
-        # 4. Format and Send Result Message
-        result_text = (
-            f"🎯 **RESULT UPDATE**\n"
-            f"🆔 **Period:** {current_period}\n"
-            f"🎰 **Actual Number:** {actual_num} ({actual_type})\n"
-            f"📌 **Result:** {res_str}\n"
-            f"📊 **Win Rate:** {win_rate}% ({wins}W / {losses}L)\n"
-            f"⭐ **Jackpots:** {jackpots}"
-        )
-
-        try:
-            await app.bot.send_message(chat_id=chat_id, text=result_text, parse_mode="Markdown")
-        except Exception as e:
-            logger.error(f"Error sending result: {e}")
-            break
+            # ============================================================
+            # STEP 2: SEND NEW PREDICTION for NEXT PERIOD
+            # ============================================================
+            # Check if we already sent prediction for the next period
+            next_period = str(int(latest_issue) + 1)
             
-        # Small delay before triggering next period loop
-        await asyncio.sleep(2)
+            if not prediction_sent_for_period.get(next_period, False):
+                
+                # Prepare history for prediction
+                history_mapped = []
+                for h in history[:15]:
+                    history_mapped.append({
+                        'issueNumber': str(h['issueNumber']),
+                        'number': int(h['number'])
+                    })
+                
+                pred_type, confidence, dna_value, level = get_prediction(history_mapped)
+                multiplier = get_martingale_info(level)
+                confidence_pct = int(confidence * 100)
+                
+                # Build prediction message
+                prediction_msg = (
+                    f"🔮 *NEW PREDICTION*\n"
+                    f"━━━━━━━━━━━━━━━━━━━━\n"
+                    f"🆔 *Period:* `{next_period[-5:]}`\n"
+                    f"🎯 *Prediction:* `{pred_type}`\n"
+                    f"🔢 *Number:* `{dna_value}`\n"
+                    f"⚡ *Confidence:* `{confidence_pct}%`\n"
+                    f"━━━━━━━━━━━━━━━━━━━━\n"
+                    f"⚡ *Level:* `{level}` (Multiplier: {multiplier})\n"
+                    f"🔥 *Streak:* `{loss_streak}`\n"
+                    f"━━━━━━━━━━━━━━━━━━━━\n"
+                    f"⏳ *Result Awaiting...*"
+                )
+                
+                # Store prediction
+                last_predicted_period = next_period
+                last_predicted_signal = pred_type
+                last_predicted_num = dna_value
+                prediction_sent_for_period[next_period] = True
+                
+                try:
+                    await bot.send_message(chat_id=CHAT_ID, text=prediction_msg, parse_mode="Markdown")
+                except Exception as e:
+                    print(f"Prediction error: {e}")
 
+            # Clean up old prediction flags (keep only last 5)
+            if len(prediction_sent_for_period) > 5:
+                oldest = min(prediction_sent_for_period.keys())
+                del prediction_sent_for_period[oldest]
 
-def main():
-    """Starts Flask and Telegram Bot Application."""
-    threading.Thread(target=run_web, daemon=True).start()
+        except Exception as e:
+            print(f"Loop Error: {e}")
+            await asyncio.sleep(5)
 
-    app = Application.builder().token(BOT_TOKEN).build()
-
-    app.add_handler(CommandHandler("start", start_command))
-    app.add_handler(CallbackQueryHandler(button_handler))
-
-    logger.info("Wingo Hack Tracker Auto Bot Running...")
-    app.run_polling()
-
-
-if __name__ == "__main__":
-    main()
+if __name__ == '__main__':
+    print("🔥 DARK X BHAI VIP BOT")
+    print("━━━━━━━━━━━━━━━━━━━━")
+    print("🧬 Mode: 1 Min Wingo")
+    print("━━━━━━━━━━━━━━━━━━━━")
+    print("🔄 Starting bot...")
+    asyncio.run(prediction_bot())
