@@ -6,12 +6,13 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 import threading
 from telegram import Bot
 
-# ==================== RENDER/FREE WEB SERVICE PORT BINDING ====================
+# ==================== RENDER WEB SERVICE PORT BINDING ====================
 class DummyServer(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.end_headers()
-        self.wfile.write(b"🔥 DARK X BHAI VIP BOT is running!")
+        # ইমোজি বাদ দিয়ে শুধু ASCII টেক্সট
+        self.wfile.write(b"DARK X BHAI VIP BOT is running!")
 
 def run_dummy_server():
     port = int(os.environ.get("PORT", 8080))
@@ -38,18 +39,14 @@ current_level = 1
 consecutive_losses = 0
 total_rounds = 0
 
-# Last prediction tracking
 last_predicted_period = None
 last_predicted_signal = None
 last_predicted_num = None
-
-# Flag to track if we've sent prediction for current period
 prediction_sent_for_period = {}
 
 # ==================== EXACT ALGORITHM ====================
 
 def run_algorithm(history_list):
-    """HTML-এর runAlgorithm ফাংশনের exact কপি"""
     if not history_list or len(history_list) < 3:
         return "BIG", 0.50, 5
     
@@ -106,11 +103,11 @@ def update_stats_on_result(actual_num, predicted_type):
     if predicted_type == actual_type:
         if actual_num == 0 or actual_num == 5:
             jackpots += 1
-            status = "⭐ JACKPOT!"
+            status = "JACKPOT!"
             status_icon = "⭐"
         else:
             total_wins += 1
-            status = "✅ WIN!"
+            status = "WIN!"
             status_icon = "✅"
         
         loss_streak = 0 if loss_streak < 0 else loss_streak + 1
@@ -121,7 +118,7 @@ def update_stats_on_result(actual_num, predicted_type):
         loss_streak = -1 if loss_streak > 0 else loss_streak - 1
         consecutive_losses += 1
         current_level = 3 if current_level >= 3 else current_level + 1
-        status = "❌ LOSS!"
+        status = "LOSS!"
         status_icon = "❌"
     
     total_rounds += 1
@@ -163,12 +160,9 @@ def fetch_api_data():
     
     return []
 
-# ==================== PREDICTION ====================
-
 def get_prediction(history_list):
     if not history_list:
         return "BIG", 50, 5, 1
-    
     pred_type, confidence, dna_value = run_algorithm(history_list)
     return pred_type, confidence, dna_value, current_level
 
@@ -179,20 +173,20 @@ async def prediction_bot():
     global total_wins, total_losses, jackpots, loss_streak
     global current_level, total_rounds, prediction_sent_for_period
 
-    print("🔥 DARK X BHAI VIP BOT STARTED...")
-    print("📡 Mode: 1 Min Wingo")
-    print("🔄 Checking API every 3 seconds")
+    print("DARK X BHAI VIP BOT STARTED...")
+    print("Mode: 1 Min Wingo")
+    print("Checking API every 3 seconds")
 
-    # Send startup message
+    # Startup message (ইমোজি ছাড়া)
     try:
         await bot.send_message(
             chat_id=CHAT_ID,
-            text="🔥 *DARK X BHAI VIP BOT ACTIVE*\n"
-                 "━━━━━━━━━━━━━━━━━━━━\n"
-                 "🧬 *Mode:* 1 Min Wingo\n"
-                 "🛡️ *Status:* ONLINE & SYNCED\n"
-                 "━━━━━━━━━━━━━━━━━━━━\n"
-                 "⏳ *Waiting for first signal...*",
+            text="*DARK X BHAI VIP BOT ACTIVE*\n"
+                 "========================\n"
+                 "Mode: 1 Min Wingo\n"
+                 "Status: ONLINE & SYNCED\n"
+                 "========================\n"
+                 "Waiting for first signal...",
             parse_mode="Markdown"
         )
     except Exception as e:
@@ -200,7 +194,6 @@ async def prediction_bot():
 
     while True:
         try:
-            # Wait for next minute + 2 seconds
             current_sec = int(time.time()) % 60
             sleep_time = 60 - current_sec + 2
             await asyncio.sleep(sleep_time)
@@ -214,30 +207,28 @@ async def prediction_bot():
             actual_type = "BIG" if actual_num >= 5 else "SMALL"
 
             # ============================================================
-            # STEP 1: CHECK RESULT for PREVIOUS PERIOD
+            # STEP 1: CHECK RESULT
             # ============================================================
             if last_predicted_period == latest_issue and last_predicted_signal is not None:
                 
-                # Update stats and get result
                 status, status_icon = update_stats_on_result(actual_num, last_predicted_signal)
                 
                 total_games = total_wins + total_losses
                 win_rate = (total_wins / total_games * 100) if total_games > 0 else 0.0
                 multiplier = get_martingale_info(current_level)
                 
-                # Build result message
                 result_msg = (
-                    f"🎯 *RESULT UPDATE*\n"
-                    f"━━━━━━━━━━━━━━━━━━━━\n"
-                    f"🆔 *Period:* `{latest_issue[-5:]}`\n"
-                    f"🎯 *Predicted:* `{last_predicted_signal}` → Num: `{last_predicted_num}`\n"
-                    f"🎰 *Actual:* `{actual_num}` ({actual_type})\n"
-                    f"📌 *Result:* *{status}*\n"
-                    f"━━━━━━━━━━━━━━━━━━━━\n"
-                    f"📊 *Win Rate:* `{win_rate:.1f}%` ({total_wins}W / {total_losses}L)\n"
-                    f"🔥 *Streak:* `{loss_streak}`\n"
-                    f"⚡ *Level:* `{current_level}` (Multiplier: {multiplier})\n"
-                    f"⭐ *Jackpots:* `{jackpots}`"
+                    f"*RESULT UPDATE*\n"
+                    f"========================\n"
+                    f"Period: `{latest_issue[-5:]}`\n"
+                    f"Predicted: `{last_predicted_signal}` -> Num: `{last_predicted_num}`\n"
+                    f"Actual: `{actual_num}` ({actual_type})\n"
+                    f"Result: *{status}*\n"
+                    f"========================\n"
+                    f"Win Rate: `{win_rate:.1f}%` ({total_wins}W / {total_losses}L)\n"
+                    f"Streak: `{loss_streak}`\n"
+                    f"Level: `{current_level}` (Multiplier: {multiplier})\n"
+                    f"Jackpots: `{jackpots}`"
                 )
                 
                 try:
@@ -246,20 +237,17 @@ async def prediction_bot():
                 except Exception as e:
                     print(f"Result error: {e}")
                 
-                # Clear prediction for this period
                 last_predicted_period = None
                 last_predicted_signal = None
                 last_predicted_num = None
 
             # ============================================================
-            # STEP 2: SEND NEW PREDICTION for NEXT PERIOD
+            # STEP 2: SEND NEW PREDICTION
             # ============================================================
-            # Check if we already sent prediction for the next period
             next_period = str(int(latest_issue) + 1)
             
             if not prediction_sent_for_period.get(next_period, False):
                 
-                # Prepare history for prediction
                 history_mapped = []
                 for h in history[:15]:
                     history_mapped.append({
@@ -271,22 +259,20 @@ async def prediction_bot():
                 multiplier = get_martingale_info(level)
                 confidence_pct = int(confidence * 100)
                 
-                # Build prediction message
                 prediction_msg = (
-                    f"🔮 *NEW PREDICTION*\n"
-                    f"━━━━━━━━━━━━━━━━━━━━\n"
-                    f"🆔 *Period:* `{next_period[-5:]}`\n"
-                    f"🎯 *Prediction:* `{pred_type}`\n"
-                    f"🔢 *Number:* `{dna_value}`\n"
-                    f"⚡ *Confidence:* `{confidence_pct}%`\n"
-                    f"━━━━━━━━━━━━━━━━━━━━\n"
-                    f"⚡ *Level:* `{level}` (Multiplier: {multiplier})\n"
-                    f"🔥 *Streak:* `{loss_streak}`\n"
-                    f"━━━━━━━━━━━━━━━━━━━━\n"
-                    f"⏳ *Result Awaiting...*"
+                    f"*NEW PREDICTION*\n"
+                    f"========================\n"
+                    f"Period: `{next_period[-5:]}`\n"
+                    f"Prediction: `{pred_type}`\n"
+                    f"Number: `{dna_value}`\n"
+                    f"Confidence: `{confidence_pct}%`\n"
+                    f"========================\n"
+                    f"Level: `{level}` (Multiplier: {multiplier})\n"
+                    f"Streak: `{loss_streak}`\n"
+                    f"========================\n"
+                    f"Result Awaiting..."
                 )
                 
-                # Store prediction
                 last_predicted_period = next_period
                 last_predicted_signal = pred_type
                 last_predicted_num = dna_value
@@ -297,7 +283,6 @@ async def prediction_bot():
                 except Exception as e:
                     print(f"Prediction error: {e}")
 
-            # Clean up old prediction flags (keep only last 5)
             if len(prediction_sent_for_period) > 5:
                 oldest = min(prediction_sent_for_period.keys())
                 del prediction_sent_for_period[oldest]
@@ -307,9 +292,9 @@ async def prediction_bot():
             await asyncio.sleep(5)
 
 if __name__ == '__main__':
-    print("🔥 DARK X BHAI VIP BOT")
-    print("━━━━━━━━━━━━━━━━━━━━")
-    print("🧬 Mode: 1 Min Wingo")
-    print("━━━━━━━━━━━━━━━━━━━━")
-    print("🔄 Starting bot...")
+    print("DARK X BHAI VIP BOT")
+    print("=========================")
+    print("Mode: 1 Min Wingo")
+    print("=========================")
+    print("Starting bot...")
     asyncio.run(prediction_bot())
