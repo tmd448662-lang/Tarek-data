@@ -28,48 +28,109 @@ CHAT_ID = "5012028880"
 SCRAPER_API_KEY = "809f9c620ed6b5fe5a72bc368e8eabee"
 RAW_API = "https://draw.ar-lottery01.com/WinGo/WinGo_30S/GetHistoryIssuePage.json?ts="
 
-PATTERN_ARRAY = [
-    {"s": "BIG", "n": 7}, {"s": "SMALL", "n": 2}, {"s": "SMALL", "n": 4}, {"s": "BIG", "n": 9},
-    {"s": "BIG", "n": 6}, {"s": "SMALL", "n": 0}, {"s": "BIG", "n": 8}, {"s": "SMALL", "n": 3},
-    {"s": "SMALL", "n": 1}, {"s": "BIG", "n": 5}, {"s": "BIG", "n": 7}, {"s": "SMALL", "n": 4}
-]
-
-PATTERN_LOGIC = {
-    "0+0":"BIG","0+1":"BIG","0+2":"BIG","0+3":"BIG","0+4":"BIG","0+5":"BIG","0+6":"BIG","0+7":"BIG","0+8":"BIG","0+9":"BIG",
-    "1+0":"SMALL","1+1":"SMALL","1+2":"SMALL","1+3":"SMALL","1+4":"SMALL","1+5":"SMALL","1+6":"SMALL","1+7":"SMALL","1+8":"SMALL","1+9":"SMALL",
-    "2+0":"BIG","2+1":"BIG","2+2":"BIG","2+3":"BIG","2+4":"BIG","2+5":"BIG","2+6":"BIG","2+7":"BIG","2+8":"BIG","2+9":"BIG",
-    "3+0":"SMALL","3+1":"SMALL","3+2":"SMALL","3+3":"SMALL","3+4":"SMALL","3+5":"SMALL","3+6":"SMALL","3+7":"SMALL","3+8":"SMALL","3+9":"SMALL",
-    "4+0":"BIG","4+1":"BIG","4+2":"BIG","4+3":"BIG","4+4":"BIG","4+5":"BIG","4+6":"BIG","4+7":"BIG","4+8":"BIG","4+9":"BIG",
-    "5+0":"SMALL","5+1":"SMALL","5+2":"SMALL","5+3":"SMALL","5+4":"SMALL","5+5":"SMALL","5+6":"SMALL","5+7":"SMALL","5+8":"SMALL","5+9":"SMALL",
-    "6+0":"BIG","6+1":"BIG","6+2":"BIG","6+3":"BIG","6+4":"BIG","6+5":"BIG","6+6":"BIG","6+7":"BIG","6+8":"BIG","6+9":"BIG",
-    "7+0":"SMALL","7+1":"SMALL","7+2":"SMALL","7+3":"SMALL","7+4":"SMALL","7+5":"SMALL","7+6":"SMALL","7+7":"SMALL","7+8":"SMALL","7+9":"SMALL",
-    "8+0":"BIG","8+1":"BIG","8+2":"BIG","8+3":"BIG","8+4":"BIG","8+5":"BIG","8+6":"BIG","8+7":"BIG","8+8":"BIG","8+9":"BIG",
-    "9+0":"SMALL","9+1":"SMALL","9+2":"SMALL","9+3":"SMALL","9+4":"SMALL","9+5":"SMALL","9+6":"SMALL","9+7":"SMALL","9+8":"SMALL","9+9":"SMALL"
-}
-
 bot = Bot(token=BOT_TOKEN)
 
+# ট্র্যাকিং ভ্যারিয়েবল
 total_wins = 0
 total_losses = 0
+total_jackpots = 0
+loss_streak = 0
+
 last_predicted_period = None
 last_predicted_signal = None
+last_predicted_num = None
 
-def get_time_based_prediction():
-    now = datetime.now(timezone.utc)
-    start_of_day = datetime(now.year, now.month, now.day, tzinfo=timezone.utc)
-    diff = int((now - start_of_day).total_seconds())
-    interval = 30
-    idx = (diff // interval) + 1
-    pattern_index = (idx + 5) % len(PATTERN_ARRAY)
-    return PATTERN_ARRAY[pattern_index]["s"]
+# ==================== HYBRID HACKED PRO ALGORITHM ====================
 
-def get_history_based_prediction(history_list):
-    if not history_list or len(history_list) < 2:
-        return "BIG"
-    last_num1 = str(history_list[0]['number'])
-    last_num2 = str(history_list[1]['number'])
-    search_key = f"{last_num2}+{last_num1}"
-    return PATTERN_LOGIC.get(search_key, 'SMALL')
+def compute_rifu(data):
+    if not data:
+        return {"side": "BIG", "conf": 70}
+    sides = [x['side'] for x in data]
+    last = sides[0]
+    
+    streak = 0
+    for s in sides:
+        if s == last:
+            streak += 1
+        else:
+            break
+            
+    if streak >= 5:
+        return {"side": last, "conf": 90}
+    
+    big_count = sum(1 for s in sides[:5] if s == "BIG")
+    if big_count >= 4:
+        return {"side": "SMALL", "conf": 76}
+    elif big_count <= 1:
+        return {"side": "BIG", "conf": 76}
+        
+    return {"side": "SMALL" if last == "BIG" else "BIG", "conf": 72}
+
+def compute_smart(data):
+    if len(data) < 4:
+        return {"side": "BIG", "conf": 50}
+    sides = [x['side'] for x in data[:4]]
+    if sides[0] == sides[3] and sides[1] == sides[2]:
+        return {"side": "SMALL" if sides[0] == "BIG" else "BIG", "conf": 92}
+    if all(s == sides[0] for s in sides):
+        return {"side": sides[0], "conf": 85}
+    return {"side": "BIG", "conf": 60}
+
+def compute_ultimate(data):
+    if len(data) < 5:
+        return {"side": "BIG", "conf": 60}
+    score = 0
+    weights = [8, 5, 3, 2, 1]
+    for i in range(min(len(data), 5)):
+        score += (1 if data[i]['number'] >= 5 else -1) * weights[i]
+    
+    side = "BIG" if score > 0 else "SMALL"
+    conf = 85 if abs(score) >= 5 else 75
+    return {"side": side, "conf": conf}
+
+def predict_hybrid_engine(history_list):
+    if not history_list:
+        return "BIG", 7, 75, "ULTIMATE"
+
+    mapped = []
+    for item in history_list[:12]:
+        num = int(item['number'])
+        mapped.append({
+            'number': num,
+            'side': "BIG" if num >= 5 else "SMALL"
+        })
+
+    rifu = compute_rifu(mapped)
+    smart = compute_smart(mapped)
+    ultimate = compute_ultimate(mapped)
+
+    engines = {
+        "CORE": rifu,
+        "SMART": smart,
+        "ULTIMATE": ultimate
+    }
+
+    # Best engine নির্বাচন
+    best_engine = max(engines, key=lambda k: engines[k]['conf'])
+    final_side = engines[best_engine]['side']
+    confidence = engines[best_engine]['conf']
+
+    # নাম্বার নির্বাচন (BIG হলে 5-9, SMALL হলে 0-4)
+    freq = [0] * 10
+    for m in mapped:
+        freq[m['number']] += 1
+
+    if final_side == "BIG":
+        pool = [5, 6, 7, 8, 9]
+    else:
+        pool = [0, 1, 2, 3, 4]
+    
+    pool.sort(key=lambda x: freq[x])
+    suggested_num = pool[0]
+
+    return final_side, suggested_num, confidence, best_engine
+
+# ==================== API FETCHING ====================
 
 def fetch_api_data():
     timestamp = str(int(time.time() * 1000))
@@ -97,9 +158,13 @@ def fetch_api_data():
 
     return []
 
+# ==================== MAIN BOT LOOP ====================
+
 async def prediction_bot():
-    global last_predicted_period, last_predicted_signal, total_wins, total_losses
-    print("30S Dual-Logic Wingo Predictor Bot Started...")
+    global last_predicted_period, last_predicted_signal, last_predicted_num
+    global total_wins, total_losses, total_jackpots, loss_streak
+
+    print("🔥 HYBRID HACKED PRO (30S WINGO) STARTED...")
 
     while True:
         try:
@@ -115,57 +180,55 @@ async def prediction_bot():
             actual_num = int(history[0]['number'])
             actual_bs = "BIG" if actual_num >= 5 else "SMALL"
 
-            # ১. রেজাল্ট মেসেজ (কাউন্ট সংখ্যা ছাড়া)
-            if last_predicted_period == latest_issue and last_predicted_signal and last_predicted_signal != "WAIT":
+            # ১. আগের সিগন্যালের রেজাল্ট চেক ও আপডেট
+            if last_predicted_period == latest_issue and last_predicted_signal:
+                is_jackpot = (actual_num == last_predicted_num)
                 is_win = (last_predicted_signal == actual_bs)
-                if is_win:
+
+                if is_jackpot:
+                    total_jackpots += 1
                     total_wins += 1
+                    loss_streak = 0
+                    status_str = "⭐ JACKPOT WIN!"
+                elif is_win:
+                    total_wins += 1
+                    loss_streak = 0
                     status_str = "🟢 WIN!"
                 else:
                     total_losses += 1
+                    loss_streak += 1
                     status_str = "🔴 LOSS!"
-                
+
                 total_games = total_wins + total_losses
                 win_rate = (total_wins / total_games * 100) if total_games > 0 else 0.0
-                
+
                 result_msg = (
                     f"🎯 *RESULT UPDATE*\n"
                     f"🆔 *Period:* `{latest_issue[-5:]}`\n"
                     f"🎰 *Actual Number:* `{actual_num}` ({actual_bs})\n"
                     f"📌 *Result:* *{status_str}*\n"
-                    f"📊 *Win Rate:* `{win_rate:.1f}%` ({total_wins}W / {total_losses}L)"
+                    f"📊 *Win Rate:* `{win_rate:.1f}%` ({total_wins}W / {total_losses}L / {total_jackpots}J)"
                 )
                 await bot.send_message(chat_id=CHAT_ID, text=result_msg, parse_mode="Markdown")
                 await asyncio.sleep(1)
 
-            # ২. প্রেডিকশন মেসেজ
-            pred_logic1 = get_time_based_prediction()
-            pred_logic2 = get_history_based_prediction(history)
-
+            # ২. অ্যালগরিদম ব্যবহার করে নতুন প্রেডিকশন তৈরি
+            signal, pred_num, conf, engine_used = predict_hybrid_engine(history)
             next_period = str(int(latest_issue) + 1)
 
-            if pred_logic1 == pred_logic2:
-                final_signal = pred_logic1
-                suggested_num = random.choice([5, 6, 7, 8, 9]) if final_signal == "BIG" else random.choice([0, 1, 2, 3, 4])
-                
-                prediction_msg = (
-                    f"⚡ *ANSH BOSS VIP PREDICTION*\n"
-                    f"⏱️ *Mode:* 30S Wingo\n"
-                    f"🆔 *Period:* `{next_period[-5:]}`\n"
-                    f"🔮 *Prediction:* `{final_signal}` (Num: {suggested_num})\n"
-                    f"⏳ *Status:* Result Awaiting..."
-                )
-            else:
-                final_signal = "WAIT"
-                prediction_msg = (
-                    f"⚡ *ANSH BOSS VIP PREDICTION*\n"
-                    f"⏱️ *Mode:* 30S Wingo\n"
-                    f"🆔 *Period:* `{next_period[-5:]}`\n"
-                    f"🔮 *Prediction:* Wait for next period"
-                )
+            prediction_msg = (
+                f"🔥 *HYBRID HACKED PRO 30S*\n"
+                f"⏱️ *Mode:* 30 Sec Wingo\n"
+                f"🆔 *Period:* `{next_period[-5:]}`\n"
+                f"🔮 *Prediction:* `{signal}` (Num: `{pred_num}`)\n"
+                f"⚡ *Confidence:* `{conf}%`\n"
+                f"🧠 *Engine:* `{engine_used}`\n"
+                f"⏳ *Status:* Result Awaiting..."
+            )
 
             last_predicted_period = next_period
-            last_predicted_signal = final_signal
+            last_predicted_signal = signal
+            last_predicted_num = pred_num
 
             await bot.send_message(chat_id=CHAT_ID, text=prediction_msg, parse_mode="Markdown")
 
