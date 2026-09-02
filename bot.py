@@ -30,7 +30,6 @@ RAW_API = "https://draw.ar-lottery01.com/WinGo/WinGo_1M/GetHistoryIssuePage.json
 
 bot = Bot(token=BOT_TOKEN)
 
-# ট্র্যাকিং ভ্যারিয়েবল (জ্যাকপট আলাদা না রেখে সাধারণ Win-এ যুক্ত)
 total_wins = 0
 total_losses = 0
 loss_streak = 0
@@ -39,7 +38,7 @@ last_predicted_period = None
 last_predicted_signal = None
 last_predicted_num = None
 
-# ==================== WEB MATCHED ENGINES ====================
+# ==================== EXACT HTML/JS ENGINE LOGIC ====================
 
 def generate_numbers(side, history_list):
     freq = [0] * 10
@@ -54,8 +53,9 @@ def generate_numbers(side, history_list):
 
     return big_pool[0] if side == "BIG" else small_pool[0]
 
+# 1. CORE ENGINE
 def compute_rifu(data):
-    if not data: return {"side": "BIG", "confidence": 70}
+    if not data: return {"side": "BIG", "confidence": 76}
     sides = [x['side'] for x in data]
     last = sides[0]
     streak = 0
@@ -63,44 +63,57 @@ def compute_rifu(data):
         if s == last: streak += 1
         else: break
     if streak >= 5: return {"side": last, "confidence": 90}
-    return {"side": "SMALL" if last == "BIG" else "BIG", "confidence": 76}
+    return {"side": "BIG" if last == "SMALL" else "SMALL", "confidence": 76}
 
+# 2. SMART ENGINE
 def compute_smart(data):
-    if len(data) < 4: return {"side": "BIG", "confidence": 75}
+    if len(data) < 4: return {"side": "SMALL", "confidence": 75}
     sides = [x['side'] for x in data[:4]]
     if sides[0] == sides[3] and sides[1] == sides[2]:
-        return {"side": "SMALL" if sides[0] == "BIG" else "BIG", "confidence": 75}
+        return {"side": "SMALL" if sides[0] == "BIG" else "BIG", "confidence": 85}
     return {"side": "SMALL", "confidence": 75}
 
+# 3. HYBRID ENGINE
 def compute_hybrid(data):
-    if len(data) < 5: return {"side": "BIG", "confidence": 69}
+    if len(data) < 5: return {"side": "BIG", "confidence": 73}
     math_num = (data[0]['number'] + data[1]['number']) % 10
-    return {"side": "BIG" if math_num >= 5 else "SMALL", "confidence": 69}
+    return {"side": "BIG" if math_num >= 5 else "SMALL", "confidence": 73}
 
+# 4. MASTER ENGINE
 def compute_master(data):
-    if len(data) < 8: return {"side": "BIG", "confidence": 95}
-    sides = [x['side'] for x in data[:4]]
-    pred = "SMALL" if sides.count("BIG") >= 2 else "BIG"
-    return {"side": pred, "confidence": 95}
+    if len(data) < 8: return {"side": "BIG", "confidence": 73}
+    score = sum((1 if x['number'] >= 5 else -1) for x in data[:5])
+    pred = "BIG" if score >= 0 else "SMALL"
+    return {"side": pred, "confidence": 73}
 
-def compute_advanced(data, current_loss_streak):
-    if len(data) < 8: return {"side": "BIG", "confidence": 95}
-    # ওয়েবসাইটের Anti-loss Logic
-    sides = [x['side'] for x in data[:3]]
-    if sides.count("SMALL") == 3:
-        return {"side": "BIG", "confidence": 76}
-    elif sides.count("BIG") == 3:
-        return {"side": "SMALL", "confidence": 76}
-    return {"side": "BIG" if sides[0] == "SMALL" else "SMALL", "confidence": 95}
+# 5. ADVANCED ENGINE (EXACT WEIGHTED FORMULA FROM WEB)
+def compute_advanced(data, streak):
+    if len(data) < 8: 
+        return {"side": "BIG", "confidence": 87}
+    
+    # ওয়েবসাইটের অরিজিনাল ওয়েটেড স্কেলিং অ্যালগরিদম
+    weights = [9, 7, 5, 3, 2, 1, 1, 1]
+    score = 0
+    for i in range(min(len(data), 8)):
+        val = 1 if data[i]['side'] == "BIG" else -1
+        score += val * weights[i]
+    
+    # Positive score = BIG, Negative = SMALL
+    pred = "BIG" if score >= 0 else "SMALL"
+    
+    # কনফিডেন্স ৮৭% ওয়েবসাইটের সাথে ফিক্সড
+    conf = 87 if abs(score) >= 3 else 76
+    return {"side": pred, "confidence": conf}
 
+# 6. ULTIMATE ENGINE
 def compute_ultimate(data):
-    if len(data) < 8: return {"side": "BIG", "confidence": 76}
-    return {"side": "BIG", "confidence": 76}
+    if len(data) < 8: return {"side": "BIG", "confidence": 70}
+    return {"side": "BIG", "confidence": 70}
 
-# ─── PREDICTION SYSTEM (EXACT WEB PRIORITY) ───
+# ─── PREDICTION SYSTEM (WEB MATCHED PRIORITY) ───
 def predict_hybrid_engine(history_list, streak):
     if not history_list:
-        return "BIG", 9, 76, "ADVANCED"
+        return "BIG", 9, 87, "ADVANCED"
 
     mapped = []
     for item in history_list[:12]:
@@ -120,24 +133,22 @@ def predict_hybrid_engine(history_list, streak):
 
     engines = {
         "ADVANCED": advanced,
-        "MASTER": master,
         "CORE": rifu,
         "SMART": smart,
         "HYBRID": hybrid,
+        "MASTER": master,
         "ULTIMATE": ultimate
     }
 
-    # ওয়েবসাইটের অগ্রাধিকার অনুযায়ী ADVANCED ইঞ্জিনকে প্রাধান্য দেওয়া হয়েছে
-    if streak >= 1 or mapped[0]['side'] == mapped[1]['side']:
-        best_engine_name = "ADVANCED"
-    else:
-        best_engine_name = "MASTER"
+    # ওয়েবসাইটে ADVANCED ইঞ্জিনকে সর্বোচ্চ অগ্রাধিকার দেওয়া হয়
+    selected_engine_name = "ADVANCED"
+    selected = engines[selected_engine_name]
 
-    final_side = engines[best_engine_name]['side']
-    confidence = engines[best_engine_name]['confidence']
+    final_side = selected['side']
+    confidence = selected['confidence']
     suggested_num = generate_numbers(final_side, mapped)
 
-    return final_side, suggested_num, confidence, best_engine_name
+    return final_side, suggested_num, confidence, selected_engine_name
 
 # ==================== API FETCHING ====================
 
@@ -173,7 +184,7 @@ async def prediction_bot():
     global last_predicted_period, last_predicted_signal, last_predicted_num
     global total_wins, total_losses, loss_streak
 
-    print("🔥 HYBRID HACKED PRO 1M MATCHED BOT STARTED...")
+    print("🔥 HYBRID HACKED PRO 1M (FIXED MATCH) BOT STARTED...")
 
     while True:
         try:
@@ -189,7 +200,7 @@ async def prediction_bot():
             actual_num = int(history[0]['number'])
             actual_bs = "BIG" if actual_num >= 5 else "SMALL"
 
-            # ১. রেজাল্ট চেক ও কাউন্টিং (জ্যাকপট সাধারণ Win হিসেবে যুক্ত)
+            # ১. রেজাল্ট চেক
             if last_predicted_period == latest_issue and last_predicted_signal:
                 is_win = (last_predicted_signal == actual_bs)
 
