@@ -19,7 +19,6 @@ def run_dummy_server():
     server = HTTPServer(('0.0.0.0', port), DummyServer)
     server.serve_forever()
 
-# Render-এর Port Error আটকানোর জন্য ব্যাকগ্রাউন্ড লোকাল সার্ভার
 threading.Thread(target=run_dummy_server, daemon=True).start()
 
 # ==================== BOT CONFIGURATION ====================
@@ -41,7 +40,7 @@ PATTERN_LOGIC = {
 
 bot = Bot(token=BOT_TOKEN)
 
-# নতুন কাউন্টার (0 থেকে কাউন্ট শুরু)
+# ট্র্যাকিং ভ্যারিয়েবল
 last_predicted_period = None
 last_predicted_signal = None
 total_wins = 0
@@ -71,7 +70,6 @@ async def prediction_bot():
 
     while True:
         try:
-            # ৩০ সেকেন্ডের সাইকেল মেলানো (ড্র শেষ হওয়ার ২ সেকেন্ড পর ডাটা তুলবে)
             current_sec = int(time.time()) % 30
             sleep_time = 30 - current_sec + 2  
             await asyncio.sleep(sleep_time)
@@ -84,15 +82,15 @@ async def prediction_bot():
             actual_num = int(history[0]['number'])
             actual_bs = "BIG" if actual_num >= 5 else "SMALL"
 
-            # ১. আগের প্রেডিকশনের রেজাল্ট সবার আগে পাঠানো (Result Update First)
+            # ১. রেজাল্ট আপডেট (Win/Loss ডায়নামিক কাউন্টসহ)
             if last_predicted_period == latest_issue and last_predicted_signal:
                 is_win = (last_predicted_signal == actual_bs)
                 if is_win:
                     total_wins += 1
-                    status_str = "🟢 WIN 1!"
+                    status_str = f"🟢 WIN {total_wins}!"
                 else:
                     total_losses += 1
-                    status_str = "🔴 LOSS"
+                    status_str = f"🔴 LOSS {total_losses}!"
                 
                 total_games = total_wins + total_losses
                 win_rate = (total_wins / total_games * 100) if total_games > 0 else 0.0
@@ -105,9 +103,9 @@ async def prediction_bot():
                     f"📊 Win Rate: {win_rate:.1f}% ({total_wins}W / {total_losses}L)"
                 )
                 await bot.send_message(chat_id=CHAT_ID, text=result_msg)
-                await asyncio.sleep(1) # ১ সেকেন্ড বিরতি
+                await asyncio.sleep(1)
 
-            # ২. নতুন পোঁডের জন্য নতুন প্রেডিকশন দেওয়া (New Prediction)
+            # ২. নতুন প্রেডিকশন
             next_period = str(int(latest_issue) + 1)
             new_signal = get_sifat_signal(history)
 
