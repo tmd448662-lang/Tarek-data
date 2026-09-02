@@ -8,7 +8,7 @@ from telegram import Bot
 BOT_TOKEN = "8386058038:AAEwayH-C4AUr7L_tx6Ecz__xpIXnrekJw0"  
 CHAT_ID = "5012028880"  
 
-# HTML কোড থেকে নেওয়া মূল প্যাটার্ন লজিক
+# HTML কোড থেকে নেওয়া মূল প্যাটার্ন লজিক
 PATTERN_LOGIC = {
     "0+0":"BIG","0+1":"BIG","0+2":"BIG","0+3":"BIG","0+4":"BIG","0+5":"BIG","0+6":"BIG","0+7":"BIG","0+8":"BIG","0+9":"BIG",
     "1+0":"SMALL","1+1":"SMALL","1+2":"SMALL","1+3":"SMALL","1+4":"SMALL","1+5":"SMALL","1+6":"SMALL","1+7":"SMALL","1+8":"SMALL","1+9":"SMALL",
@@ -64,7 +64,7 @@ async def prediction_bot():
                 continue
 
             latest_issue = str(history[0]['issueNumber'])
-                actual_num = int(history[0]['number'])
+            actual_num = int(history[0]['number'])
             actual_bs = "BIG" if actual_num >= 5 else "SMALL"
 
             # ১. আগের প্রেডিকশনের রেজাল্ট পাঠানো (Result Update First)
@@ -90,7 +90,7 @@ async def prediction_bot():
                 await bot.send_message(chat_id=CHAT_ID, text=result_msg)
                 await asyncio.sleep(1) # ১ সেকেন্ড বিরতি
 
-            # ২. নতুন পোঁডের জন্য নতুন প্রেডিকশন দেওয়া (New Prediction)
+            # ২. নতুন পিরিয়ডের জন্য নতুন প্রেডিকশন দেওয়া (New Prediction)
             next_period = str(int(latest_issue) + 1)
             new_signal = get_sifat_signal(history)
 
