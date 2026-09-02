@@ -49,12 +49,8 @@ PATTERN_LOGIC = {
 
 bot = Bot(token=BOT_TOKEN)
 
-# ট্র্যাকিং ভ্যারিয়েবল
 total_wins = 0
 total_losses = 0
-current_win_streak = 0
-current_loss_streak = 0
-
 last_predicted_period = None
 last_predicted_signal = None
 
@@ -102,7 +98,7 @@ def fetch_api_data():
     return []
 
 async def prediction_bot():
-    global last_predicted_period, last_predicted_signal, total_wins, total_losses, current_win_streak, current_loss_streak
+    global last_predicted_period, last_predicted_signal, total_wins, total_losses
     print("30S Dual-Logic Wingo Predictor Bot Started...")
 
     while True:
@@ -119,19 +115,15 @@ async def prediction_bot():
             actual_num = int(history[0]['number'])
             actual_bs = "BIG" if actual_num >= 5 else "SMALL"
 
-            # ১. আগের সিগন্যাল থাকলে রেজাল্ট পাঠানো
+            # ১. রেজাল্ট মেসেজ (কাউন্ট সংখ্যা ছাড়া)
             if last_predicted_period == latest_issue and last_predicted_signal and last_predicted_signal != "WAIT":
                 is_win = (last_predicted_signal == actual_bs)
                 if is_win:
                     total_wins += 1
-                    current_win_streak += 1
-                    current_loss_streak = 0  # লস রিসেট
-                    status_str = f"🟢 WIN {current_win_streak}!"
+                    status_str = "🟢 WIN!"
                 else:
                     total_losses += 1
-                    current_loss_streak += 1
-                    current_win_streak = 0   # উইন রিসেট
-                    status_str = f"🔴 LOSS {current_loss_streak}!"
+                    status_str = "🔴 LOSS!"
                 
                 total_games = total_wins + total_losses
                 win_rate = (total_wins / total_games * 100) if total_games > 0 else 0.0
@@ -146,7 +138,7 @@ async def prediction_bot():
                 await bot.send_message(chat_id=CHAT_ID, text=result_msg, parse_mode="Markdown")
                 await asyncio.sleep(1)
 
-            # ২. ২টি লজিক মিলিয়ে নতুন প্রেডিকশন
+            # ২. প্রেডিকশন মেসেজ
             pred_logic1 = get_time_based_prediction()
             pred_logic2 = get_history_based_prediction(history)
 
@@ -169,8 +161,7 @@ async def prediction_bot():
                     f"⚡ *ANSH BOSS VIP PREDICTION*\n"
                     f"⏱️ *Mode:* 30S Wingo\n"
                     f"🆔 *Period:* `{next_period[-5:]}`\n"
-                    f"🔮 *Prediction:* ⏳ *Wait Next Period...*\n"
-                    f"⚠️ *Reason:* Dual Logic Mismatch"
+                    f"🔮 *Prediction:* Wait for next period"
                 )
 
             last_predicted_period = next_period
