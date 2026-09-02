@@ -2,6 +2,7 @@ import asyncio
 import time
 import requests
 import os
+import random
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import threading
 from telegram import Bot
@@ -11,7 +12,6 @@ class DummyServer(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.end_headers()
-        # ইমোজি বাদ দিয়ে শুধু ASCII টেক্সট
         self.wfile.write(b"DARK X BHAI VIP BOT is running!")
 
 def run_dummy_server():
@@ -86,7 +86,6 @@ def run_algorithm(history_list):
         pred_type = "SMALL" if latest_num >= 5 else "BIG"
         confidence = 0.99
     
-    import random
     if pred_type == "BIG":
         dna_value = random.randint(5, 9)
     else:
@@ -104,11 +103,9 @@ def update_stats_on_result(actual_num, predicted_type):
         if actual_num == 0 or actual_num == 5:
             jackpots += 1
             status = "JACKPOT!"
-            status_icon = "⭐"
         else:
             total_wins += 1
             status = "WIN!"
-            status_icon = "✅"
         
         loss_streak = 0 if loss_streak < 0 else loss_streak + 1
         consecutive_losses = 0
@@ -119,10 +116,9 @@ def update_stats_on_result(actual_num, predicted_type):
         consecutive_losses += 1
         current_level = 3 if current_level >= 3 else current_level + 1
         status = "LOSS!"
-        status_icon = "❌"
     
     total_rounds += 1
-    return status, status_icon
+    return status
 
 def get_martingale_info(level):
     if level == 1:
@@ -138,25 +134,14 @@ def fetch_api_data():
     timestamp = str(int(time.time() * 1000))
     raw_url = RAW_API + "?t=" + timestamp
     try:
-        res = requests.get(raw_url, timeout=4)
-        if res.status_code == 200:
-            data = res.json()
-            list_data = data.get("data", {}).get("list", [])
-            if list_data:
-                return list_data
-    except Exception:
-        pass
-    
-    try:
-        proxy_url = f"http://api.scraperapi.com?api_key={SCRAPER_API_KEY}&url={requests.utils.quote(raw_url)}"
-        res = requests.get(proxy_url, timeout=8)
+        res = requests.get(raw_url, timeout=5)
         if res.status_code == 200:
             data = res.json()
             list_data = data.get("data", {}).get("list", [])
             if list_data:
                 return list_data
     except Exception as e:
-        print("API Fetch Error:", e)
+        print("API Error:", e)
     
     return []
 
@@ -177,11 +162,10 @@ async def prediction_bot():
     print("Mode: 1 Min Wingo")
     print("Checking API every 3 seconds")
 
-    # Startup message (ইমোজি ছাড়া)
     try:
         await bot.send_message(
             chat_id=CHAT_ID,
-            text="*DARK X BHAI VIP BOT ACTIVE*\n"
+            text="DARK X BHAI VIP BOT ACTIVE\n"
                  "========================\n"
                  "Mode: 1 Min Wingo\n"
                  "Status: ONLINE & SYNCED\n"
@@ -195,11 +179,12 @@ async def prediction_bot():
     while True:
         try:
             current_sec = int(time.time()) % 60
-            sleep_time = 60 - current_sec + 2
+            sleep_time = 60 - current_sec + 3
             await asyncio.sleep(sleep_time)
 
             history = fetch_api_data()
             if not history:
+                print("No data from API, retrying...")
                 continue
 
             latest_issue = str(history[0]['issueNumber'])
@@ -211,28 +196,28 @@ async def prediction_bot():
             # ============================================================
             if last_predicted_period == latest_issue and last_predicted_signal is not None:
                 
-                status, status_icon = update_stats_on_result(actual_num, last_predicted_signal)
+                status = update_stats_on_result(actual_num, last_predicted_signal)
                 
                 total_games = total_wins + total_losses
                 win_rate = (total_wins / total_games * 100) if total_games > 0 else 0.0
                 multiplier = get_martingale_info(current_level)
                 
                 result_msg = (
-                    f"*RESULT UPDATE*\n"
+                    f"RESULT UPDATE\n"
                     f"========================\n"
-                    f"Period: `{latest_issue[-5:]}`\n"
-                    f"Predicted: `{last_predicted_signal}` -> Num: `{last_predicted_num}`\n"
-                    f"Actual: `{actual_num}` ({actual_type})\n"
-                    f"Result: *{status}*\n"
+                    f"Period: {latest_issue[-5:]}\n"
+                    f"Predicted: {last_predicted_signal} -> Num: {last_predicted_num}\n"
+                    f"Actual: {actual_num} ({actual_type})\n"
+                    f"Result: {status}\n"
                     f"========================\n"
-                    f"Win Rate: `{win_rate:.1f}%` ({total_wins}W / {total_losses}L)\n"
-                    f"Streak: `{loss_streak}`\n"
-                    f"Level: `{current_level}` (Multiplier: {multiplier})\n"
-                    f"Jackpots: `{jackpots}`"
+                    f"Win Rate: {win_rate:.1f}% ({total_wins}W / {total_losses}L)\n"
+                    f"Streak: {loss_streak}\n"
+                    f"Level: {current_level} (Multiplier: {multiplier})\n"
+                    f"Jackpots: {jackpots}"
                 )
                 
                 try:
-                    await bot.send_message(chat_id=CHAT_ID, text=result_msg, parse_mode="Markdown")
+                    await bot.send_message(chat_id=CHAT_ID, text=result_msg)
                     await asyncio.sleep(1)
                 except Exception as e:
                     print(f"Result error: {e}")
@@ -260,15 +245,15 @@ async def prediction_bot():
                 confidence_pct = int(confidence * 100)
                 
                 prediction_msg = (
-                    f"*NEW PREDICTION*\n"
+                    f"NEW PREDICTION\n"
                     f"========================\n"
-                    f"Period: `{next_period[-5:]}`\n"
-                    f"Prediction: `{pred_type}`\n"
-                    f"Number: `{dna_value}`\n"
-                    f"Confidence: `{confidence_pct}%`\n"
+                    f"Period: {next_period[-5:]}\n"
+                    f"Prediction: {pred_type}\n"
+                    f"Number: {dna_value}\n"
+                    f"Confidence: {confidence_pct}%\n"
                     f"========================\n"
-                    f"Level: `{level}` (Multiplier: {multiplier})\n"
-                    f"Streak: `{loss_streak}`\n"
+                    f"Level: {level} (Multiplier: {multiplier})\n"
+                    f"Streak: {loss_streak}\n"
                     f"========================\n"
                     f"Result Awaiting..."
                 )
@@ -279,7 +264,7 @@ async def prediction_bot():
                 prediction_sent_for_period[next_period] = True
                 
                 try:
-                    await bot.send_message(chat_id=CHAT_ID, text=prediction_msg, parse_mode="Markdown")
+                    await bot.send_message(chat_id=CHAT_ID, text=prediction_msg)
                 except Exception as e:
                     print(f"Prediction error: {e}")
 
