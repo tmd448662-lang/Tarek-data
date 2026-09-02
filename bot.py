@@ -28,14 +28,12 @@ CHAT_ID = "5012028880"
 SCRAPER_API_KEY = "809f9c620ed6b5fe5a72bc368e8eabee"
 RAW_API = "https://draw.ar-lottery01.com/WinGo/WinGo_30S/GetHistoryIssuePage.json?ts="
 
-# লজিক ১-এর জন্য প্যাটার্ন অ্যারে (১ম কোড থেকে প্রাপ্ত)
 PATTERN_ARRAY = [
     {"s": "BIG", "n": 7}, {"s": "SMALL", "n": 2}, {"s": "SMALL", "n": 4}, {"s": "BIG", "n": 9},
     {"s": "BIG", "n": 6}, {"s": "SMALL", "n": 0}, {"s": "BIG", "n": 8}, {"s": "SMALL", "n": 3},
     {"s": "SMALL", "n": 1}, {"s": "BIG", "n": 5}, {"s": "BIG", "n": 7}, {"s": "SMALL", "n": 4}
 ]
 
-# লজিক ২-এর জন্য হিস্ট্রি ডিকশনারি (২য় কোড থেকে প্রাপ্ত)
 PATTERN_LOGIC = {
     "0+0":"BIG","0+1":"BIG","0+2":"BIG","0+3":"BIG","0+4":"BIG","0+5":"BIG","0+6":"BIG","0+7":"BIG","0+8":"BIG","0+9":"BIG",
     "1+0":"SMALL","1+1":"SMALL","1+2":"SMALL","1+3":"SMALL","1+4":"SMALL","1+5":"SMALL","1+6":"SMALL","1+7":"SMALL","1+8":"SMALL","1+9":"SMALL",
@@ -54,21 +52,21 @@ bot = Bot(token=BOT_TOKEN)
 # ট্র্যাকিং ভ্যারিয়েবল
 total_wins = 0
 total_losses = 0
+current_win_streak = 0
+current_loss_streak = 0
+
 last_predicted_period = None
 last_predicted_signal = None
 
-# লজিক ১ (টাইম ও অ্যারে বেসড প্রেডিকশন - ৩০ সেকেন্ডের জন্য)
 def get_time_based_prediction():
     now = datetime.now(timezone.utc)
     start_of_day = datetime(now.year, now.month, now.day, tzinfo=timezone.utc)
     diff = int((now - start_of_day).total_seconds())
-    interval = 30  # 30S Wingo
+    interval = 30
     idx = (diff // interval) + 1
     pattern_index = (idx + 5) % len(PATTERN_ARRAY)
-    pred = PATTERN_ARRAY[pattern_index]
-    return pred["s"]
+    return PATTERN_ARRAY[pattern_index]["s"]
 
-# লজিক ২ (হিস্ট্রি এপিআই বেসড প্রেডিকশন)
 def get_history_based_prediction(history_list):
     if not history_list or len(history_list) < 2:
         return "BIG"
@@ -77,11 +75,9 @@ def get_history_based_prediction(history_list):
     search_key = f"{last_num2}+{last_num1}"
     return PATTERN_LOGIC.get(search_key, 'SMALL')
 
-# এপিআই ডাটা ফেচিং (Direct + ScraperAPI Fallback)
 def fetch_api_data():
     timestamp = str(int(time.time() * 1000))
     raw_url = RAW_API + timestamp
-    
     try:
         res = requests.get(raw_url, timeout=4)
         if res.status_code == 200:
@@ -106,7 +102,7 @@ def fetch_api_data():
     return []
 
 async def prediction_bot():
-    global last_predicted_period, last_predicted_signal, total_wins, total_losses
+    global last_predicted_period, last_predicted_signal, total_wins, total_losses, current_win_streak, current_loss_streak
     print("30S Dual-Logic Wingo Predictor Bot Started...")
 
     while True:
@@ -123,15 +119,19 @@ async def prediction_bot():
             actual_num = int(history[0]['number'])
             actual_bs = "BIG" if actual_num >= 5 else "SMALL"
 
-            # ১. আগের সিগন্যাল থাকলে রেজাল্ট পাঠানো (স্কিপ করা সিগন্যালে রেজাল্ট পাঠাবে না)
+            # ১. আগের সিগন্যাল থাকলে রেজাল্ট পাঠানো
             if last_predicted_period == latest_issue and last_predicted_signal and last_predicted_signal != "WAIT":
                 is_win = (last_predicted_signal == actual_bs)
                 if is_win:
                     total_wins += 1
-                    status_str = f"🟢 WIN {total_wins}!"
+                    current_win_streak += 1
+                    current_loss_streak = 0  # লস রিসেট
+                    status_str = f"🟢 WIN {current_win_streak}!"
                 else:
                     total_losses += 1
-                    status_str = f"🔴 LOSS {total_losses}!"
+                    current_loss_streak += 1
+                    current_win_streak = 0   # উইন রিসেট
+                    status_str = f"🔴 LOSS {current_loss_streak}!"
                 
                 total_games = total_wins + total_losses
                 win_rate = (total_wins / total_games * 100) if total_games > 0 else 0.0
@@ -146,13 +146,12 @@ async def prediction_bot():
                 await bot.send_message(chat_id=CHAT_ID, text=result_msg, parse_mode="Markdown")
                 await asyncio.sleep(1)
 
-            # ২. দুটি লজিক চেক ও সিদ্ধান্ত নেওয়া
+            # ২. ২টি লজিক মিলিয়ে নতুন প্রেডিকশন
             pred_logic1 = get_time_based_prediction()
             pred_logic2 = get_history_based_prediction(history)
 
             next_period = str(int(latest_issue) + 1)
 
-            # ২টা লজিক একই হলে প্রেডিকশন পাঠাবে, অমিল হলে WAIT পাঠাবে
             if pred_logic1 == pred_logic2:
                 final_signal = pred_logic1
                 suggested_num = random.choice([5, 6, 7, 8, 9]) if final_signal == "BIG" else random.choice([0, 1, 2, 3, 4])
