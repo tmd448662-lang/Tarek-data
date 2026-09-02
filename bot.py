@@ -1,6 +1,9 @@
 import logging
 import random
 import asyncio
+import threading
+import os
+from flask import Flask
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     Application,
@@ -12,6 +15,17 @@ from telegram.ext import (
 # Configuration
 BOT_TOKEN = "8386058038:AAEwayH-C4AUr7L_tx6Ecz__xpIXnrekJw0"
 ADMIN_ID = 5012028880
+
+# Dummy Web Server to satisfy Render Port check
+web_app = Flask(__name__)
+
+@web_app.route('/')
+def home():
+    return "Bot is alive!"
+
+def run_web():
+    port = int(os.environ.get("PORT", 10000))
+    web_app.run(host="0.0.0.0", port=port)
 
 # Logging Setup
 logging.basicConfig(
@@ -85,7 +99,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handles inline button interactions."""
-    global user_stats  # Declared at the very beginning of the function to avoid SyntaxError
+    global user_stats
 
     query = update.callback_query
     await query.answer()
@@ -193,10 +207,10 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 def main():
-    """Starts the Telegram bot."""
-    app = Application.builder().token(BOT_TOKEN).build()
+    """Starts the Flask server in a thread and runs the Telegram bot."""
+    threading.Thread(target=run_web, daemon=True).start()
 
-    # Handlers
+    app = Application.builder().token(BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(CallbackQueryHandler(button_handler))
 
