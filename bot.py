@@ -25,7 +25,6 @@ BOT_TOKEN = "8386058038:AAEwayH-C4AUr7L_tx6Ecz__xpIXnrekJw0"
 CHAT_ID = "5012028880"  
 SCRAPER_API_KEY = "809f9c620ed6b5fe5a72bc368e8eabee"
 
-# 1 MINUTE WINGO API
 RAW_API = "https://draw.ar-lottery01.com/WinGo/WinGo_1M/GetHistoryIssuePage.json?ts="
 
 bot = Bot(token=BOT_TOKEN)
@@ -38,80 +37,127 @@ last_predicted_period = None
 last_predicted_signal = None
 last_predicted_num = None
 
-# ==================== EXACT HTML/JS ENGINE LOGIC ====================
+# ==================== EXACT WEB ADVANCED ENGINE ====================
 
-def generate_numbers(side, history_list):
-    freq = [0] * 10
-    for x in history_list:
-        freq[x['number']] += 1
+def compute_advanced_exact(data):
+    """
+    ওয়েবসাইটের JS-এর EXACT ADVANCED ইঞ্জিন অ্যালগরিদম
+    """
+    if len(data) < 8:
+        return "BIG", 87
     
-    big_pool = [5, 6, 7, 8, 9]
-    small_pool = [0, 1, 2, 3, 4]
+    # ওয়েবসাইটের অরিজিনাল ওয়েটেড স্কেলিং
+    weights = [9, 7, 5, 3, 2, 1, 1, 1]
+    score = 0
+    
+    for i in range(8):
+        if data[i]['number'] >= 5:
+            score += weights[i]
+        else:
+            score -= weights[i]
+    
+    # Positive = BIG, Negative = SMALL
+    pred = "BIG" if score >= 0 else "SMALL"
+    
+    # ওয়েবসাইটের মতো ৮৭% ফিক্সড
+    conf = 87
+    
+    return pred, conf
 
-    big_pool.sort(key=lambda x: freq[x])
-    small_pool.sort(key=lambda x: freq[x])
+# ==================== CORE ENGINE (MATCHES WEB) ====================
 
-    return big_pool[0] if side == "BIG" else small_pool[0]
-
-# 1. CORE ENGINE
-def compute_rifu(data):
-    if not data: return {"side": "BIG", "confidence": 76}
+def compute_core_exact(data):
+    if not data:
+        return "BIG", 76
+    
     sides = [x['side'] for x in data]
     last = sides[0]
     streak = 0
     for s in sides:
-        if s == last: streak += 1
-        else: break
-    if streak >= 5: return {"side": last, "confidence": 90}
-    return {"side": "BIG" if last == "SMALL" else "SMALL", "confidence": 76}
+        if s == last:
+            streak += 1
+        else:
+            break
+    
+    if streak >= 5:
+        return last, 90
+    
+    # Reversal: if last is BIG → predict SMALL, else BIG
+    pred = "SMALL" if last == "BIG" else "BIG"
+    return pred, 76
 
-# 2. SMART ENGINE
-def compute_smart(data):
-    if len(data) < 4: return {"side": "SMALL", "confidence": 75}
+# ==================== SMART ENGINE ====================
+
+def compute_smart_exact(data):
+    if len(data) < 4:
+        return "SMALL", 75
+    
     sides = [x['side'] for x in data[:4]]
+    
+    # Mirror Pattern (ABBA)
     if sides[0] == sides[3] and sides[1] == sides[2]:
-        return {"side": "SMALL" if sides[0] == "BIG" else "BIG", "confidence": 85}
-    return {"side": "SMALL", "confidence": 75}
+        pred = "SMALL" if sides[0] == "BIG" else "BIG"
+        return pred, 85
+    
+    return "SMALL", 75
 
-# 3. HYBRID ENGINE
-def compute_hybrid(data):
-    if len(data) < 5: return {"side": "BIG", "confidence": 73}
+# ==================== HYBRID ENGINE ====================
+
+def compute_hybrid_exact(data):
+    if len(data) < 5:
+        return "BIG", 73
+    
     math_num = (data[0]['number'] + data[1]['number']) % 10
-    return {"side": "BIG" if math_num >= 5 else "SMALL", "confidence": 73}
+    pred = "BIG" if math_num >= 5 else "SMALL"
+    return pred, 73
 
-# 4. MASTER ENGINE
-def compute_master(data):
-    if len(data) < 8: return {"side": "BIG", "confidence": 73}
-    score = sum((1 if x['number'] >= 5 else -1) for x in data[:5])
-    pred = "BIG" if score >= 0 else "SMALL"
-    return {"side": pred, "confidence": 73}
+# ==================== MASTER ENGINE ====================
 
-# 5. ADVANCED ENGINE (EXACT WEIGHTED FORMULA FROM WEB)
-def compute_advanced(data, streak):
-    if len(data) < 8: 
-        return {"side": "BIG", "confidence": 87}
+def compute_master_exact(data):
+    if len(data) < 8:
+        return "BIG", 73
     
-    # ওয়েবসাইটের অরিজিনাল ওয়েটেড স্কেলিং অ্যালগরিদম
-    weights = [9, 7, 5, 3, 2, 1, 1, 1]
+    # ওয়েবসাইটের মতো সিম্পল স্কোর
     score = 0
-    for i in range(min(len(data), 8)):
-        val = 1 if data[i]['side'] == "BIG" else -1
-        score += val * weights[i]
+    for i in range(min(8, len(data))):
+        if data[i]['number'] >= 5:
+            score += 1
+        else:
+            score -= 1
     
-    # Positive score = BIG, Negative = SMALL
     pred = "BIG" if score >= 0 else "SMALL"
+    conf = 73
+    return pred, conf
+
+# ==================== ULTIMATE ENGINE ====================
+
+def compute_ultimate_exact(data):
+    if len(data) < 8:
+        return "BIG", 70
     
-    # কনফিডেন্স ৮৭% ওয়েবসাইটের সাথে ফিক্সড
-    conf = 87 if abs(score) >= 3 else 76
-    return {"side": pred, "confidence": conf}
+    # সিম্পল ট্রেন্ড ফলো
+    big_count = sum(1 for x in data[:8] if x['number'] >= 5)
+    pred = "BIG" if big_count >= 4 else "SMALL"
+    conf = 70
+    return pred, conf
 
-# 6. ULTIMATE ENGINE
-def compute_ultimate(data):
-    if len(data) < 8: return {"side": "BIG", "confidence": 70}
-    return {"side": "BIG", "confidence": 70}
+# ==================== PREDICTION SYSTEM (EXACT WEB MATCH) ====================
 
-# ─── PREDICTION SYSTEM (WEB MATCHED PRIORITY) ───
-def predict_hybrid_engine(history_list, streak):
+def generate_numbers(side, data):
+    freq = [0] * 10
+    for x in data:
+        freq[x['number']] += 1
+    
+    if side == "BIG":
+        pool = [5, 6, 7, 8, 9]
+        pool.sort(key=lambda x: freq[x])
+        return pool[0] if pool else 7
+    else:
+        pool = [0, 1, 2, 3, 4]
+        pool.sort(key=lambda x: freq[x])
+        return pool[0] if pool else 2
+
+def predict_hybrid_engine(history_list):
     if not history_list:
         return "BIG", 9, 87, "ADVANCED"
 
@@ -124,31 +170,34 @@ def predict_hybrid_engine(history_list, streak):
             'side': "BIG" if num >= 5 else "SMALL"
         })
 
-    rifu = compute_rifu(mapped)
-    smart = compute_smart(mapped)
-    hybrid = compute_hybrid(mapped)
-    master = compute_master(mapped)
-    advanced = compute_advanced(mapped, streak)
-    ultimate = compute_ultimate(mapped)
+    # ===== ওয়েবসাইটের EXACT অ্যালগরিদম =====
+    core_pred, core_conf = compute_core_exact(mapped)
+    smart_pred, smart_conf = compute_smart_exact(mapped)
+    hybrid_pred, hybrid_conf = compute_hybrid_exact(mapped)
+    master_pred, master_conf = compute_master_exact(mapped)
+    advanced_pred, advanced_conf = compute_advanced_exact(mapped)
+    ultimate_pred, ultimate_conf = compute_ultimate_exact(mapped)
 
+    # ===== ইঞ্জিন কনফিডেন্স ম্যাপ =====
     engines = {
-        "ADVANCED": advanced,
-        "CORE": rifu,
-        "SMART": smart,
-        "HYBRID": hybrid,
-        "MASTER": master,
-        "ULTIMATE": ultimate
+        "CORE": {"side": core_pred, "conf": core_conf},
+        "SMART": {"side": smart_pred, "conf": smart_conf},
+        "HYBRID": {"side": hybrid_pred, "conf": hybrid_conf},
+        "MASTER": {"side": master_pred, "conf": master_conf},
+        "ADVANCED": {"side": advanced_pred, "conf": advanced_conf},
+        "ULTIMATE": {"side": ultimate_pred, "conf": ultimate_conf},
     }
 
-    # ওয়েবসাইটে ADVANCED ইঞ্জিনকে সর্বোচ্চ অগ্রাধিকার দেওয়া হয়
-    selected_engine_name = "ADVANCED"
-    selected = engines[selected_engine_name]
-
+    # ===== ওয়েবসাইটের মতো ADVANCED কে প্রায়োরিটি =====
+    # ওয়েবসাইটে ADVANCED ইঞ্জিন ৮৭% দিয়ে সিলেক্ট হয়
+    selected_engine = "ADVANCED"
+    selected = engines[selected_engine]
+    
     final_side = selected['side']
-    confidence = selected['confidence']
+    confidence = selected['conf']
     suggested_num = generate_numbers(final_side, mapped)
 
-    return final_side, suggested_num, confidence, selected_engine_name
+    return final_side, suggested_num, confidence, selected_engine
 
 # ==================== API FETCHING ====================
 
@@ -184,7 +233,7 @@ async def prediction_bot():
     global last_predicted_period, last_predicted_signal, last_predicted_num
     global total_wins, total_losses, loss_streak
 
-    print("🔥 HYBRID HACKED PRO 1M (FIXED MATCH) BOT STARTED...")
+    print("🔥 HYBRID HACKED PRO 1M (EXACT WEB MATCH) BOT STARTED...")
 
     while True:
         try:
@@ -227,7 +276,7 @@ async def prediction_bot():
                 await asyncio.sleep(1)
 
             # ২. নতুন প্রেডিকশন
-            signal, pred_num, conf, engine_used = predict_hybrid_engine(history, loss_streak)
+            signal, pred_num, conf, engine_used = predict_hybrid_engine(history)
             next_period = str(int(latest_issue) + 1)
 
             prediction_msg = (
