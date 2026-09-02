@@ -21,6 +21,21 @@ def run_dummy_server():
 
 threading.Thread(target=run_dummy_server, daemon=True).start()
 
+# ==================== KEEP-ALIVE FUNCTION ====================
+def keep_alive():
+    """প্রতি ১০ মিনিটে নিজেকে পিং করে যাতে বট স্লিপ না হয়"""
+    while True:
+        try:
+            time.sleep(600)  # ১০ মিনিট
+            port = int(os.environ.get("PORT", 8080))
+            url = f"http://localhost:{port}/"
+            requests.get(url, timeout=5)
+            print("🔄 Keep-alive ping sent")
+        except Exception as e:
+            print(f"Keep-alive error: {e}")
+
+threading.Thread(target=keep_alive, daemon=True).start()
+
 # ==================== BOT CONFIGURATION ====================
 BOT_TOKEN = "8386058038:AAEwayH-C4AUr7L_tx6Ecz__xpIXnrekJw0"  
 CHAT_ID = "5012028880"  
@@ -100,7 +115,6 @@ def update_stats_on_result(actual_num, predicted_type):
     actual_type = "BIG" if actual_num >= 5 else "SMALL"
     
     if predicted_type == actual_type:
-        # WIN (জ্যাকপটও WIN হিসেবে কাউন্ট)
         total_wins += 1
         status = "WIN"
         status_icon = "🟢"
@@ -215,7 +229,6 @@ async def prediction_bot():
                 multiplier = get_martingale_info(current_level)
                 streak_emoji = get_streak_emoji(loss_streak)
                 
-                # জ্যাকপট ডিটেক্ট (শুধু মেসেজে দেখানোর জন্য)
                 is_jackpot = (actual_num == 0 or actual_num == 5)
                 jackpot_text = " ⭐ JACKPOT!" if is_jackpot else ""
                 
