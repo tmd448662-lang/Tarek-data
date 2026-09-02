@@ -33,7 +33,6 @@ bot = Bot(token=BOT_TOKEN)
 # ==================== STATS ====================
 total_wins = 0
 total_losses = 0
-jackpots = 0
 loss_streak = 0
 current_level = 1
 consecutive_losses = 0
@@ -48,7 +47,7 @@ prediction_sent_for_period = {}
 
 def run_algorithm(history_list):
     if not history_list or len(history_list) < 3:
-        return "BIG", 0.50, 5
+        return "BIG", 0.50
     
     types = []
     for h in history_list[:10]:
@@ -86,39 +85,40 @@ def run_algorithm(history_list):
         pred_type = "SMALL" if latest_num >= 5 else "BIG"
         confidence = 0.99
     
+    return pred_type, confidence
+
+def generate_dna_value(pred_type):
     if pred_type == "BIG":
-        dna_value = random.randint(5, 9)
+        return random.randint(5, 9)
     else:
-        dna_value = random.randint(0, 4)
-    
-    return pred_type, confidence, dna_value
+        return random.randint(0, 4)
 
 def update_stats_on_result(actual_num, predicted_type):
-    global total_wins, total_losses, jackpots, loss_streak
+    global total_wins, total_losses, loss_streak
     global current_level, consecutive_losses, total_rounds
     
     actual_type = "BIG" if actual_num >= 5 else "SMALL"
     
     if predicted_type == actual_type:
-        if actual_num == 0 or actual_num == 5:
-            jackpots += 1
-            status = "JACKPOT!"
-        else:
-            total_wins += 1
-            status = "WIN!"
+        # WIN (জ্যাকপটও WIN হিসেবে কাউন্ট)
+        total_wins += 1
+        status = "WIN"
+        status_icon = "🟢"
         
         loss_streak = 0 if loss_streak < 0 else loss_streak + 1
         consecutive_losses = 0
         current_level = 1
     else:
         total_losses += 1
+        status = "LOSS"
+        status_icon = "🔴"
+        
         loss_streak = -1 if loss_streak > 0 else loss_streak - 1
         consecutive_losses += 1
         current_level = 3 if current_level >= 3 else current_level + 1
-        status = "LOSS!"
     
     total_rounds += 1
-    return status
+    return status, status_icon
 
 def get_martingale_info(level):
     if level == 1:
@@ -127,6 +127,14 @@ def get_martingale_info(level):
         return "3x"
     else:
         return "9x"
+
+def get_streak_emoji(streak):
+    if streak > 0:
+        return "🔥"
+    elif streak < 0:
+        return "📉"
+    else:
+        return "⏸️"
 
 # ==================== API FETCHING ====================
 
@@ -148,30 +156,31 @@ def fetch_api_data():
 def get_prediction(history_list):
     if not history_list:
         return "BIG", 50, 5, 1
-    pred_type, confidence, dna_value = run_algorithm(history_list)
+    pred_type, confidence = run_algorithm(history_list)
+    dna_value = generate_dna_value(pred_type)
     return pred_type, confidence, dna_value, current_level
 
 # ==================== MAIN BOT LOOP ====================
 
 async def prediction_bot():
     global last_predicted_period, last_predicted_signal, last_predicted_num
-    global total_wins, total_losses, jackpots, loss_streak
+    global total_wins, total_losses, loss_streak
     global current_level, total_rounds, prediction_sent_for_period
 
-    print("DARK X BHAI VIP BOT STARTED...")
-    print("Mode: 1 Min Wingo")
-    print("Checking API every 3 seconds")
+    print("🔥 DARK X BHAI VIP BOT STARTED...")
+    print("📡 Mode: 1 Min Wingo")
+    print("🔄 Checking API every 3 seconds")
 
     try:
         await bot.send_message(
             chat_id=CHAT_ID,
-            text="DARK X BHAI VIP BOT ACTIVE\n"
-                 "========================\n"
-                 "Mode: 1 Min Wingo\n"
-                 "Status: ONLINE & SYNCED\n"
-                 "========================\n"
-                 "Waiting for first signal...",
-            parse_mode="Markdown"
+            text="🔥 DARK X BHAI VIP 🔥\n"
+                 "━━━━━━━━━━━━━━━━━━━━\n"
+                 "💎 TITAN DNA VIP V4\n"
+                 "⚡ MODE: 1 MIN WINGO\n"
+                 "🛡️ STATUS: ONLINE & SYNCED\n"
+                 "━━━━━━━━━━━━━━━━━━━━\n"
+                 "⏳ WAITING FOR FIRST SIGNAL...",
         )
     except Exception as e:
         print(f"Startup error: {e}")
@@ -196,24 +205,33 @@ async def prediction_bot():
             # ============================================================
             if last_predicted_period == latest_issue and last_predicted_signal is not None:
                 
-                status = update_stats_on_result(actual_num, last_predicted_signal)
+                status, status_icon = update_stats_on_result(
+                    actual_num, 
+                    last_predicted_signal
+                )
                 
                 total_games = total_wins + total_losses
                 win_rate = (total_wins / total_games * 100) if total_games > 0 else 0.0
                 multiplier = get_martingale_info(current_level)
+                streak_emoji = get_streak_emoji(loss_streak)
+                
+                # জ্যাকপট ডিটেক্ট (শুধু মেসেজে দেখানোর জন্য)
+                is_jackpot = (actual_num == 0 or actual_num == 5)
+                jackpot_text = " ⭐ JACKPOT!" if is_jackpot else ""
                 
                 result_msg = (
-                    f"RESULT UPDATE\n"
-                    f"========================\n"
-                    f"Period: {latest_issue[-5:]}\n"
-                    f"Predicted: {last_predicted_signal} -> Num: {last_predicted_num}\n"
-                    f"Actual: {actual_num} ({actual_type})\n"
-                    f"Result: {status}\n"
-                    f"========================\n"
-                    f"Win Rate: {win_rate:.1f}% ({total_wins}W / {total_losses}L)\n"
-                    f"Streak: {loss_streak}\n"
-                    f"Level: {current_level} (Multiplier: {multiplier})\n"
-                    f"Jackpots: {jackpots}"
+                    f"🎯 RESULT UPDATE {status_icon}\n"
+                    f"━━━━━━━━━━━━━━━━━━━━\n"
+                    f"🆔 PERIOD: #{latest_issue[-5:]}\n"
+                    f"🎯 PREDICTED: {last_predicted_signal} → {last_predicted_num}\n"
+                    f"🎰 ACTUAL: {actual_num} ({actual_type})\n"
+                    f"📌 RESULT: {status_icon} {status}{jackpot_text}\n"
+                    f"━━━━━━━━━━━━━━━━━━━━\n"
+                    f"📊 WIN RATE: {win_rate:.1f}% ({total_wins}W/{total_losses}L)\n"
+                    f"{streak_emoji} STREAK: {loss_streak:+d}\n"
+                    f"👑 LEVEL: {current_level} ({multiplier})\n"
+                    f"━━━━━━━━━━━━━━━━━━━━\n"
+                    f"💎 TITAN DNA VIP V4"
                 )
                 
                 try:
@@ -243,19 +261,21 @@ async def prediction_bot():
                 pred_type, confidence, dna_value, level = get_prediction(history_mapped)
                 multiplier = get_martingale_info(level)
                 confidence_pct = int(confidence * 100)
+                streak_emoji = get_streak_emoji(loss_streak)
                 
                 prediction_msg = (
-                    f"NEW PREDICTION\n"
-                    f"========================\n"
-                    f"Period: {next_period[-5:]}\n"
-                    f"Prediction: {pred_type}\n"
-                    f"Number: {dna_value}\n"
-                    f"Confidence: {confidence_pct}%\n"
-                    f"========================\n"
-                    f"Level: {level} (Multiplier: {multiplier})\n"
-                    f"Streak: {loss_streak}\n"
-                    f"========================\n"
-                    f"Result Awaiting..."
+                    f"🔥 DARK X BHAI VIP 🔥\n"
+                    f"━━━━━━━━━━━━━━━━━━━━\n"
+                    f"🆔 PERIOD: #{next_period[-5:]}\n"
+                    f"🎯 PREDICTION: {pred_type}\n"
+                    f"🔢 TARGET NUMBER: {dna_value}\n"
+                    f"⚡ CONFIDENCE: {confidence_pct}%\n"
+                    f"━━━━━━━━━━━━━━━━━━━━\n"
+                    f"👑 LEVEL: {level} ({multiplier})\n"
+                    f"{streak_emoji} STREAK: {loss_streak:+d}\n"
+                    f"━━━━━━━━━━━━━━━━━━━━\n"
+                    f"⏳ RESULT AWAITING...\n"
+                    f"💎 TITAN DNA VIP V4"
                 )
                 
                 last_predicted_period = next_period
@@ -277,9 +297,9 @@ async def prediction_bot():
             await asyncio.sleep(5)
 
 if __name__ == '__main__':
-    print("DARK X BHAI VIP BOT")
-    print("=========================")
-    print("Mode: 1 Min Wingo")
-    print("=========================")
-    print("Starting bot...")
+    print("🔥 DARK X BHAI VIP BOT")
+    print("━━━━━━━━━━━━━━━━━━━━")
+    print("💎 MODE: 1 MIN WINGO")
+    print("━━━━━━━━━━━━━━━━━━━━")
+    print("🔄 STARTING BOT...")
     asyncio.run(prediction_bot())
