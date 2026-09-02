@@ -2,13 +2,30 @@ import asyncio
 import time
 import random
 import requests
+import os
+from http.server import HTTPServer, BaseHTTPRequestHandler
+import threading
 from telegram import Bot
 
-# ==================== CONFIGURATION ====================
+# ==================== RENDER FREE WEB SERVICE PORT BINDING ====================
+class DummyServer(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"Bot is running successfully!")
+
+def run_dummy_server():
+    port = int(os.environ.get("PORT", 8080))
+    server = HTTPServer(('0.0.0.0', port), DummyServer)
+    server.serve_forever()
+
+# Render-এর Port Error আটকানোর জন্য ব্যাকগ্রাউন্ড লোকাল সার্ভার
+threading.Thread(target=run_dummy_server, daemon=True).start()
+
+# ==================== BOT CONFIGURATION ====================
 BOT_TOKEN = "8386058038:AAEwayH-C4AUr7L_tx6Ecz__xpIXnrekJw0"  
 CHAT_ID = "5012028880"  
 
-# HTML কোড থেকে নেওয়া মূল প্যাটার্ন লজিক
 PATTERN_LOGIC = {
     "0+0":"BIG","0+1":"BIG","0+2":"BIG","0+3":"BIG","0+4":"BIG","0+5":"BIG","0+6":"BIG","0+7":"BIG","0+8":"BIG","0+9":"BIG",
     "1+0":"SMALL","1+1":"SMALL","1+2":"SMALL","1+3":"SMALL","1+4":"SMALL","1+5":"SMALL","1+6":"SMALL","1+7":"SMALL","1+8":"SMALL","1+9":"SMALL",
@@ -24,7 +41,7 @@ PATTERN_LOGIC = {
 
 bot = Bot(token=BOT_TOKEN)
 
-# নতুন করে ট্র্যাকিং শুরু (0 থেকে কাউন্ট)
+# নতুন কাউন্টার (0 থেকে কাউন্ট শুরু)
 last_predicted_period = None
 last_predicted_signal = None
 total_wins = 0
@@ -54,7 +71,7 @@ async def prediction_bot():
 
     while True:
         try:
-            # ৩০ সেকেন্ডের সাইকেল হিসাব (ড্র শেষ হওয়ার ২ সেকেন্ড পর রিফ্রেশ)
+            # ৩০ সেকেন্ডের সাইকেল মেলানো (ড্র শেষ হওয়ার ২ সেকেন্ড পর ডাটা তুলবে)
             current_sec = int(time.time()) % 30
             sleep_time = 30 - current_sec + 2  
             await asyncio.sleep(sleep_time)
@@ -67,7 +84,7 @@ async def prediction_bot():
             actual_num = int(history[0]['number'])
             actual_bs = "BIG" if actual_num >= 5 else "SMALL"
 
-            # ১. আগের প্রেডিকশনের রেজাল্ট পাঠানো (Result Update First)
+            # ১. আগের প্রেডিকশনের রেজাল্ট সবার আগে পাঠানো (Result Update First)
             if last_predicted_period == latest_issue and last_predicted_signal:
                 is_win = (last_predicted_signal == actual_bs)
                 if is_win:
@@ -90,7 +107,7 @@ async def prediction_bot():
                 await bot.send_message(chat_id=CHAT_ID, text=result_msg)
                 await asyncio.sleep(1) # ১ সেকেন্ড বিরতি
 
-            # ২. নতুন পিরিয়ডের জন্য নতুন প্রেডিকশন দেওয়া (New Prediction)
+            # ২. নতুন পোঁডের জন্য নতুন প্রেডিকশন দেওয়া (New Prediction)
             next_period = str(int(latest_issue) + 1)
             new_signal = get_sifat_signal(history)
 
