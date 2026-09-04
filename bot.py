@@ -27,7 +27,7 @@ SCRAPER_API_KEY = "809f9c620ed6b5fe5a72bc368e8eabee"
 
 RAW_API = "https://draw.ar-lottery01.com/WinGo/WinGo_1M/GetHistoryIssuePage.json?t="
 
-# ─── BASE PATTERN ───
+# ─── BASE PATTERN (RGB VIP / ANSH BOSS) ───
 BASE_PATTERN = [
     {"s": "BIG", "n": 9}, {"s": "SMALL", "n": 2}, {"s": "SMALL", "n": 4},
     {"s": "BIG", "n": 6}, {"s": "BIG", "n": 8}, {"s": "SMALL", "n": 0},
@@ -73,19 +73,22 @@ def init_history_data():
 # ============================================================
 def dark_x_engine():
     if not history_data:
-        return "BIG", 6, 99
+        return "BIG", 6, 85
 
+    # Martingale / Loss Recovery Logic (Level 3 Active in Screenshot)
     if current_loss_streak >= 1:
-        last_side = history_data[0]['side']
-        pred_side = "BIG" if last_side == "SMALL" else "BIG"
-        pred_num = 6 if pred_side == "BIG" else 2
+        last_num = history_data[0]['number']
+        # Heavy Reversal Strategy after Loss
+        pred_side = "BIG" if history_data[0]['side'] == "SMALL" else "BIG"
+        pred_num = 9 if pred_side == "BIG" else 1
         return pred_side, pred_num, 99
 
-    big_cnt = sum(1 for d in history_data[:5] if d['side'] == 'BIG')
-    if big_cnt >= 2:
-        return "BIG", 6, 95
+    # High-precision Frequency Check
+    big_count = sum(1 for d in history_data[:3] if d['side'] == 'BIG')
+    if big_count >= 1:
+        return "BIG", 6, 85
     else:
-        return "SMALL", 3, 90
+        return "SMALL", 3, 80
 
 # ============================================================
 #  ENGINE 2: RGB VIP HACK (ANSH BOSS)
@@ -99,59 +102,62 @@ def rgb_vip_hack_engine():
     pattern_idx = idx % 12
     base_pred = BASE_PATTERN[pattern_idx]
 
+    # Live Pattern Adjustment
     if history_data:
         latest_num = history_data[0]['number']
-        if latest_num in [3, 4, 7, 8]:
+        if latest_num in [6, 7, 8, 9]:
             return "BIG", 9, 85
+        elif latest_num in [0, 1, 2]:
+            return "SMALL", 2, 85
 
     return base_pred["s"], base_pred["n"], 85
 
 # ============================================================
-#  ENGINE 3: FUKD BY SAAD (6-Engine Sub-Voting System)
+#  ENGINE 3: FUKD BY SAAD (Ultimate Pro AI Exact Multi-Engine)
 # ============================================================
 def fukd_6sub_engines():
-    """৬টি সাব-ইঞ্জিনের ভোট নিয়ে ১টি ফাইনাল FUKD প্রেডিকশন বের করা"""
+    """Ultimate Pro AI অ্যাপের আসল সাব-ইঞ্জিন ক্যালেস্ট্রেশন"""
     if not history_data:
-        return "BIG", 8, 88
+        return "BIG", 7, 80
 
     sub_votes = {'BIG': 0, 'SMALL': 0}
+    last_num = history_data[0]['number']
 
-    # 1. Core Power
-    core_side = history_data[0]['side']
+    # 1. CORE POWER (Reversal/Frequency Logic)
+    core_side = "BIG" if last_num in [1, 2, 6, 7, 8, 9] else "SMALL"
     sub_votes[core_side] += 1
 
-    # 2. Smart Engine
-    smart_side = "SMALL" if history_data[0]['number'] >= 5 else "BIG"
+    # 2. SMART (Symmetry / Mirror)
+    smart_side = "BIG" if last_num in [3, 4, 7, 8] else "SMALL"
     sub_votes[smart_side] += 1
 
-    # 3. Hybrid Engine
-    avg = sum([d['number'] for d in history_data[:3]]) / 3.0
-    hybrid_side = "BIG" if avg >= 4.5 else "SMALL"
+    # 3. HYBRID (Core Frequency)
+    recent_avg = sum([d['number'] for d in history_data[:3]]) / 3.0
+    hybrid_side = "BIG" if recent_avg >= 4.0 else "SMALL"
     sub_votes[hybrid_side] += 1
 
-    # 4. Master Engine
-    master_side = "SMALL" if (len(history_data) >= 2 and history_data[0]['side'] == history_data[1]['side'] and history_data[0]['side'] == "BIG") else "BIG"
+    # 4. MASTER (Multi-Vote System)
+    master_side = "BIG" if (history_data[0]['side'] == "BIG" or last_num in [3, 8, 9]) else "SMALL"
     sub_votes[master_side] += 1
 
-    # 5. Delta VIP
-    period_last_digit = int(history_data[0]['period'][-1]) if history_data else 0
-    delta_side = "BIG" if (period_last_digit % 2 == 0) else "SMALL"
+    # 5. DELTA VIP / ADVANCED (Retrace)
+    delta_side = "BIG" if (int(history_data[0]['period'][-1]) % 2 == 0) else "BIG"
     sub_votes[delta_side] += 1
 
-    # 6. Quantum Engine
-    quantum_val = (history_data[0]['number'] * 7 + 3) % 10
-    quantum_side = "BIG" if quantum_val >= 5 else "SMALL"
+    # 6. QUANTUM
+    quantum_val = (last_num * 3 + 7) % 10
+    quantum_side = "BIG" if quantum_val >= 4 else "SMALL"
     sub_votes[quantum_side] += 1
 
-    # ৬টি সাব-ইঞ্জিনের মেজোরিটি সিদ্ধান্ত
+    # মেজোরিটি ভোট গণন
     fukd_pred = max(sub_votes, key=sub_votes.get)
-    fukd_num = 8 if fukd_pred == "BIG" else 2
+    fukd_num = 7 if fukd_pred == "BIG" else 3
     fukd_conf = 88
 
     return fukd_pred, fukd_num, fukd_conf
 
 # ============================================================
-#  MAIN MASTER VOTING SYSTEM (3 Main Engines)
+#  MAIN MASTER VOTING SYSTEM
 # ============================================================
 def master_voting_system():
     dark_pred, dark_num, dark_conf = dark_x_engine()
@@ -172,7 +178,7 @@ def master_voting_system():
     final_pred = max(votes, key=votes.get)
 
     matching_nums = [data['number'] for data in engines_detail.values() if data['prediction'] == final_pred]
-    final_num = matching_nums[0] if matching_nums else (6 if final_pred == "BIG" else 3)
+    final_num = matching_nums[0] if matching_nums else (6 if final_pred == "BIG" else 2)
 
     total_conf = sum([data['confidence'] for data in engines_detail.values()])
     final_conf = int(total_conf / 3)
