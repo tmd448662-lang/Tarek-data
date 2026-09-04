@@ -13,7 +13,7 @@ class DummyServer(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.end_headers()
-        self.wfile.write(b"6-ENGINE HYBRID VIP BOT is running!")
+        self.wfile.write(b"MATCHING HYBRID VIP BOT is running!")
 
 def run_dummy_server():
     port = int(os.environ.get("PORT", 8080))
@@ -54,7 +54,6 @@ last_predicted_period = None
 last_predicted_signal = None
 last_predicted_num = None
 prediction_sent_for_period = {}
-last_best_engine = "DARK X"
 
 # ==================== HOURLY STATS ====================
 hourly_stats = {
@@ -69,11 +68,11 @@ hourly_stats = {
 last_hour_report_time = time.time()
 
 # ============================================================
-#  6 AI ENGINES (ULTIMATE বাদ)
+#  ENGINE 1: DARK X
 # ============================================================
 
 def dark_x_engine(data):
-    """DARK X - Markov Chain + Trend"""
+    """DARK X - Single Prediction Engine"""
     if len(data) < 5:
         return {"prediction": "BIG", "confidence": 50, "number": 7}
     
@@ -120,11 +119,24 @@ def dark_x_engine(data):
     
     return {"prediction": pred, "confidence": conf, "number": num}
 
-def core_engine(data):
-    """CORE POWER - Weighted Scoring"""
+# ============================================================
+#  ENGINE 2: FUKD BY SAAD (6 Engines)
+# ============================================================
+
+def fukd_saad_prediction(data):
+    """FUKD BY SAAD - 6 Engine Voting System"""
     if len(data) < 8:
-        return {"prediction": "BIG", "confidence": 76, "number": 6}
+        return {"prediction": "BIG", "confidence": 60, "number": 5}
     
+    sides = [d['side'] for d in data[:10]]
+    numbers = [d['number'] for d in data[:10]]
+    
+    # 6টি ইঞ্জিনের ভোট
+    votes = {'BIG': 0, 'SMALL': 0}
+    confidences = []
+    numbers_list = []
+    
+    # 1. CORE ENGINE
     weights = [9, 7, 5, 3, 2, 1, 1, 1]
     score = 0
     for i in range(min(8, len(data))):
@@ -132,134 +144,122 @@ def core_engine(data):
             score += weights[i]
         else:
             score -= weights[i]
+    core_pred = "BIG" if score >= 0 else "SMALL"
+    core_conf = 87 if abs(score) >= 3 else 76
+    votes[core_pred] += 1
+    confidences.append(core_conf)
     
-    pred = "BIG" if score >= 0 else "SMALL"
-    conf = 87 if abs(score) >= 3 else 76
-    num = pred == "BIG" and 6 or 0
-    
-    return {"prediction": pred, "confidence": conf, "number": num}
-
-def smart_engine(data):
-    """SMART - Symmetry + Gap"""
-    if len(data) < 4:
-        return {"prediction": "SMALL", "confidence": 75, "number": 2}
-    
-    sides = [d['side'] for d in data[:4]]
-    if sides[0] == sides[3] and sides[1] == sides[2]:
-        pred = "SMALL" if sides[0] == "BIG" else "BIG"
-        conf = 92
+    # 2. SMART ENGINE
+    if len(sides) >= 4 and sides[0] == sides[3] and sides[1] == sides[2]:
+        smart_pred = "SMALL" if sides[0] == "BIG" else "BIG"
+        smart_conf = 92
     else:
-        pred = "SMALL"
-        conf = 75
+        smart_pred = "SMALL"
+        smart_conf = 75
+    votes[smart_pred] += 1
+    confidences.append(smart_conf)
     
-    num = pred == "BIG" and 8 or 1
+    # 3. HYBRID ENGINE
+    math_num = (numbers[0] + numbers[1]) % 10
+    hybrid_pred = "BIG" if math_num >= 5 else "SMALL"
+    hybrid_conf = 82
+    votes[hybrid_pred] += 1
+    confidences.append(hybrid_conf)
     
-    return {"prediction": pred, "confidence": conf, "number": num}
-
-def hybrid_engine(data):
-    """HYBRID - Frequency + Trend"""
-    if len(data) < 5:
-        return {"prediction": "BIG", "confidence": 73, "number": 6}
-    
-    math_num = (data[0]['number'] + data[1]['number']) % 10
-    pred = "BIG" if math_num >= 5 else "SMALL"
-    conf = 82
-    num = pred == "BIG" and 9 or 3
-    
-    return {"prediction": pred, "confidence": conf, "number": num}
-
-def master_engine(data):
-    """MASTER - Voting System"""
-    if len(data) < 8:
-        return {"prediction": "BIG", "confidence": 73, "number": 6}
-    
+    # 4. MASTER ENGINE
     score = 0
     for i in range(min(8, len(data))):
         if data[i]['number'] >= 5:
             score += (8 - i)
         else:
             score -= (8 - i)
+    master_pred = "BIG" if score >= 0 else "SMALL"
+    master_conf = 95
+    votes[master_pred] += 1
+    confidences.append(master_conf)
     
-    pred = "BIG" if score >= 0 else "SMALL"
-    conf = 95
-    num = pred == "BIG" and 8 or 3
-    
-    return {"prediction": pred, "confidence": conf, "number": num}
-
-def advanced_engine(data):
-    """ADVANCED - Memory + Anti-Loss"""
-    if len(data) < 8:
-        return {"prediction": "BIG", "confidence": 87, "number": 7}
-    
-    weights = [9, 7, 5, 3, 2, 1, 1, 1]
-    score = 0
-    for i in range(min(8, len(data))):
-        if data[i]['number'] >= 5:
-            score += weights[i]
-        else:
-            score -= weights[i]
-    
+    # 5. ADVANCED ENGINE
     global loss_streak
     if loss_streak >= 3:
         score = -score
+    advanced_pred = "BIG" if score >= 0 else "SMALL"
+    advanced_conf = 87 if abs(score) >= 3 else 76
+    advanced_conf = advanced_conf + (5 if loss_streak >= 3 else 0)
+    votes[advanced_pred] += 1
+    confidences.append(advanced_conf)
     
-    pred = "BIG" if score >= 0 else "SMALL"
-    conf = 87 if abs(score) >= 3 else 76
-    conf = conf + (5 if loss_streak >= 3 else 0)
-    num = pred == "BIG" and 7 or 2
-    
-    return {"prediction": pred, "confidence": conf, "number": num}
-
-# ============================================================
-#  MASTER PREDICTION (6 ENGINES)
-# ============================================================
-
-def master_prediction(data):
-    """৬টি ইঞ্জিনের ভোট নিয়ে ফাইনাল সিদ্ধান্ত"""
-    
-    engines = {
-        'DARK X': dark_x_engine(data),
-        'CORE': core_engine(data),
-        'SMART': smart_engine(data),
-        'HYBRID': hybrid_engine(data),
-        'MASTER': master_engine(data),
-        'ADVANCED': advanced_engine(data)
-    }
-    
-    votes = {'BIG': 0, 'SMALL': 0}
-    numbers = []
-    confidences = []
-    engine_details = {}
-    
-    for name, result in engines.items():
-        votes[result['prediction']] += 1
-        numbers.append(result['number'])
-        confidences.append(result['confidence'])
-        engine_details[name] = {
-            'prediction': result['prediction'],
-            'number': result['number'],
-            'confidence': result['confidence']
-        }
-    
-    final_pred = max(votes, key=votes.get)
-    
-    if final_pred == "BIG":
-        big_nums = [n for n in numbers if n >= 5]
-        final_num = big_nums[0] if big_nums else 7
+    # 6. ULTIMATE ENGINE (সিম্পল)
+    streak = 1
+    for i in range(1, len(sides[:8])):
+        if sides[i] == sides[i-1]:
+            streak += 1
+        else:
+            break
+    if streak >= 5:
+        ultimate_pred = "SMALL" if sides[0] == "BIG" else "BIG"
+        ultimate_conf = 95
     else:
-        small_nums = [n for n in numbers if n < 5]
-        final_num = small_nums[0] if small_nums else 2
+        big_count = sides[:8].count("BIG")
+        ultimate_pred = "BIG" if big_count >= 4 else "SMALL"
+        ultimate_conf = 70 + (abs(big_count - 4) * 5)
+        ultimate_conf = min(95, ultimate_conf)
+    votes[ultimate_pred] += 1
+    confidences.append(ultimate_conf)
     
+    # ফাইনাল
+    final_pred = max(votes, key=votes.get)
     final_conf = int(sum(confidences) / len(confidences))
-    best = max(engines, key=lambda x: engines[x]['confidence'])
+    
+    # সংখ্যা
+    if final_pred == "BIG":
+        final_num = random.randint(5, 9)
+    else:
+        final_num = random.randint(0, 4)
+    
+    return {"prediction": final_pred, "confidence": final_conf, "number": final_num}
+
+# ============================================================
+#  MASTER MATCHING SYSTEM
+# ============================================================
+
+def master_matching_system(data):
+    """DARK X + FUKD BY SAAD - Matching System"""
+    
+    # ===== DARK X প্রেডিকশন =====
+    dark_x = dark_x_engine(data)
+    
+    # ===== FUKD BY SAAD প্রেডিকশন =====
+    fukd = fukd_saad_prediction(data)
+    
+    # ===== ম্যাচিং চেক =====
+    if dark_x['prediction'] == fukd['prediction']:
+        # ম্যাচ হয়েছে! প্রেডিকশন পাঠাও
+        matched = True
+        final_pred = dark_x['prediction']
+        final_num = dark_x['number']  # DARK X-এর সংখ্যা ব্যবহার
+        final_conf = int((dark_x['confidence'] + fukd['confidence']) / 2)
+        
+        status_text = "✅ MATCH FOUND"
+        status_icon = "🟢"
+    else:
+        # ম্যাচ হয়নি! WAIT
+        matched = False
+        final_pred = "WAIT"
+        final_num = "--"
+        final_conf = 0
+        
+        status_text = "⏳ WAITING - NO MATCH"
+        status_icon = "🟡"
     
     return {
+        'matched': matched,
         'prediction': final_pred,
         'number': final_num,
         'confidence': final_conf,
-        'best_engine': best,
-        'votes': votes,
-        'engines': engine_details
+        'dark_x': dark_x,
+        'fukd': fukd,
+        'status': status_text,
+        'status_icon': status_icon
     }
 
 # ============================================================
@@ -303,8 +303,8 @@ async def send_hourly_report():
             f"📉 *WORST LOSS STREAK:* `{hourly_stats['max_loss_streak']}x`\n"
             f"🔥 *CURRENT STREAK:* `{hourly_stats['current_streak']}x {hourly_stats['streak_type']}`\n"
             f"━━━━━━━━━━━━━━━━━━━━\n"
-            f"🧠 *6 ENGINES ACTIVE*\n"
-            f"💎 6-ENGINE HYBRID VIP V6"
+            f"🧠 *MATCHING SYSTEM: DARK X + FUKD BY SAAD*\n"
+            f"💎 MATCHING HYBRID VIP"
         )
         
         try:
@@ -327,21 +327,19 @@ async def prediction_bot():
     global total_wins, total_losses, jackpots, loss_streak, current_level
     global total_rounds, history_data, last_predicted_period
     global last_predicted_signal, last_predicted_num, prediction_sent_for_period
-    global last_best_engine
 
-    print("🔥 6-ENGINE HYBRID VIP BOT STARTED...")
-    print("🧠 6 ENGINES: DARK X + CORE + SMART + HYBRID + MASTER + ADVANCED")
-    print("🗳️ MAJORITY VOTING SYSTEM ACTIVE")
+    print("🔥 MATCHING HYBRID VIP BOT STARTED...")
+    print("🧠 DARK X + FUKD BY SAAD (6 Engines)")
+    print("✅ MATCH = SEND | ❌ NO MATCH = WAIT")
 
     try:
         await bot.send_message(
             chat_id=CHAT_ID,
-            text="🔥 6-ENGINE HYBRID VIP 🔥\n"
+            text="🔥 MATCHING HYBRID VIP 🔥\n"
                  "━━━━━━━━━━━━━━━━━━━━\n"
-                 "🧠 6 AI ENGINES ACTIVE\n"
-                 "📊 DARK X + CORE + SMART\n"
-                 "📊 HYBRID + MASTER + ADVANCED\n"
-                 "🗳️ MAJORITY VOTE = FINAL\n"
+                 "🧠 DARK X + FUKD BY SAAD (6 Engines)\n"
+                 "✅ MATCH FOUND = SEND PREDICTION\n"
+                 "❌ NO MATCH = WAIT FOR NEXT ROUND\n"
                  "⚡ MODE: 1 MIN WINGO\n"
                  "📊 HOURLY REPORT: ACTIVE\n"
                  "━━━━━━━━━━━━━━━━━━━━\n"
@@ -439,8 +437,8 @@ async def prediction_bot():
                     f"🔥 STREAK: {loss_streak:+d}\n"
                     f"👑 LEVEL: {current_level} ({multiplier})\n"
                     f"━━━━━━━━━━━━━━━━━━━━\n"
-                    f"🗳️ 6 ENGINES VOTING SYSTEM\n"
-                    f"💎 6-ENGINE HYBRID VIP V6"
+                    f"🧠 MATCHING SYSTEM: DARK X + FUKD BY SAAD\n"
+                    f"💎 MATCHING HYBRID VIP"
                 )
                 
                 try:
@@ -460,49 +458,63 @@ async def prediction_bot():
             
             if not prediction_sent_for_period.get(next_period, False):
                 
-                pred = master_prediction(history_data)
-                last_best_engine = pred['best_engine']
-                multiplier = "1x" if current_level == 1 else "3x" if current_level == 2 else "9x"
-                confidence_pct = int(pred['confidence'])
+                pred = master_matching_system(history_data)
                 
-                # ইঞ্জিন ভোটের বিবরণ
-                engine_votes = ""
-                for name, data in pred['engines'].items():
-                    engine_votes += f"{name}: {data['prediction']} ({data['number']}) {data['confidence']}%\n"
-                
-                prediction_msg = (
-                    f"🔥 6-ENGINE HYBRID VIP 🔥\n"
-                    f"━━━━━━━━━━━━━━━━━━━━\n"
-                    f"🆔 PERIOD: #{next_period[-5:]}\n"
-                    f"━━━━━━━━━━━━━━━━━━━━\n"
-                    f"🗳️ *VOTING RESULT*\n"
-                    f"📊 BIG: {pred['votes']['BIG']} | SMALL: {pred['votes']['SMALL']}\n"
-                    f"━━━━━━━━━━━━━━━━━━━━\n"
-                    f"📈 *FINAL PREDICTION*\n"
-                    f"🎯 PREDICTION: {pred['prediction']}\n"
-                    f"🔢 TARGET NUMBER: {pred['number']}\n"
-                    f"⚡ CONFIDENCE: {confidence_pct}%\n"
-                    f"🧠 BEST ENGINE: {pred['best_engine']}\n"
-                    f"━━━━━━━━━━━━━━━━━━━━\n"
-                    f"🧠 *6 ENGINE VOTES*\n"
-                    f"{engine_votes}"
-                    f"━━━━━━━━━━━━━━━━━━━━\n"
-                    f"👑 LEVEL: {current_level} ({multiplier})\n"
-                    f"🔥 STREAK: {loss_streak:+d}\n"
-                    f"━━━━━━━━━━━━━━━━━━━━\n"
-                    f"⏳ RESULT AWAITING...\n"
-                    f"💎 6-ENGINE HYBRID VIP V6"
-                )
-                
-                last_predicted_period = next_period
-                last_predicted_signal = pred['prediction']
-                last_predicted_num = pred['number']
-                prediction_sent_for_period[next_period] = True
-                
-                try:
-                    await bot.send_message(chat_id=CHAT_ID, text=prediction_msg)
-                except:
-                    pass
+                if pred['matched']:
+                    # ম্যাচ হয়েছে → প্রেডিকশন পাঠাও
+                    multiplier = "1x" if current_level == 1 else "3x" if current_level == 2 else "9x"
+                    
+                    prediction_msg = (
+                        f"🔥 MATCHING HYBRID VIP 🔥\n"
+                        f"━━━━━━━━━━━━━━━━━━━━\n"
+                        f"🆔 PERIOD: #{next_period[-5:]}\n"
+                        f"━━━━━━━━━━━━━━━━━━━━\n"
+                        f"✅ *MATCH FOUND!*\n"
+                        f"━━━━━━━━━━━━━━━━━━━━\n"
+                        f"📈 *FINAL PREDICTION*\n"
+                        f"🎯 PREDICTION: {pred['prediction']}\n"
+                        f"🔢 TARGET NUMBER: {pred['number']}\n"
+                        f"⚡ CONFIDENCE: {pred['confidence']}%\n"
+                        f"━━━━━━━━━━━━━━━━━━━━\n"
+                        f"🧠 *DARK X:* {pred['dark_x']['prediction']} ({pred['dark_x']['number']}) {pred['dark_x']['confidence']}%\n"
+                        f"🧠 *FUKD BY SAAD:* {pred['fukd']['prediction']} ({pred['fukd']['number']}) {pred['fukd']['confidence']}%\n"
+                        f"━━━━━━━━━━━━━━━━━━━━\n"
+                        f"👑 LEVEL: {current_level} ({multiplier})\n"
+                        f"🔥 STREAK: {loss_streak:+d}\n"
+                        f"━━━━━━━━━━━━━━━━━━━━\n"
+                        f"⏳ RESULT AWAITING...\n"
+                        f"💎 MATCHING HYBRID VIP"
+                    )
+                    
+                    last_predicted_period = next_period
+                    last_predicted_signal = pred['prediction']
+                    last_predicted_num = pred['number']
+                    prediction_sent_for_period[next_period] = True
+                    
+                    try:
+                        await bot.send_message(chat_id=CHAT_ID, text=prediction_msg)
+                    except:
+                        pass
+                else:
+                    # ম্যাচ হয়নি → WAIT মেসেজ
+                    wait_msg = (
+                        f"⏳ *WAITING - NO MATCH*\n"
+                        f"━━━━━━━━━━━━━━━━━━━━\n"
+                        f"🆔 PERIOD: #{next_period[-5:]}\n"
+                        f"━━━━━━━━━━━━━━━━━━━━\n"
+                        f"🧠 *DARK X:* {pred['dark_x']['prediction']} ({pred['dark_x']['number']}) {pred['dark_x']['confidence']}%\n"
+                        f"🧠 *FUKD BY SAAD:* {pred['fukd']['prediction']} ({pred['fukd']['number']}) {pred['fukd']['confidence']}%\n"
+                        f"━━━━━━━━━━━━━━━━━━━━\n"
+                        f"❌ *NO MATCH FOUND*\n"
+                        f"⏳ *WAITING FOR NEXT ROUND...*\n"
+                        f"━━━━━━━━━━━━━━━━━━━━\n"
+                        f"💎 MATCHING HYBRID VIP"
+                    )
+                    
+                    try:
+                        await bot.send_message(chat_id=CHAT_ID, text=wait_msg)
+                    except:
+                        pass
 
             if len(prediction_sent_for_period) > 5:
                 oldest = min(prediction_sent_for_period.keys())
@@ -513,9 +525,9 @@ async def prediction_bot():
             await asyncio.sleep(5)
 
 if __name__ == '__main__':
-    print("🔥 6-ENGINE HYBRID VIP BOT")
+    print("🔥 MATCHING HYBRID VIP BOT")
     print("━━━━━━━━━━━━━━━━━━━━")
-    print("🧠 6 ENGINES: DARK X + CORE + SMART + HYBRID + MASTER + ADVANCED")
-    print("🗳️ MAJORITY VOTING SYSTEM")
+    print("🧠 DARK X + FUKD BY SAAD (6 Engines)")
+    print("✅ MATCH = SEND | ❌ NO MATCH = WAIT")
     print("━━━━━━━━━━━━━━━━━━━━")
     asyncio.run(prediction_bot())
