@@ -2,7 +2,6 @@ import os
 import requests
 import json
 import time
-import random
 from datetime import datetime, timezone
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import threading
@@ -28,12 +27,12 @@ SCRAPER_API_KEY = "809f9c620ed6b5fe5a72bc368e8eabee"
 
 RAW_API = "https://draw.ar-lottery01.com/WinGo/WinGo_1M/GetHistoryIssuePage.json?t="
 
-# ─── BASE PATTERN (12-STEP) ───
+# ─── BASE PATTERN ───
 BASE_PATTERN = [
-    {"s": "BIG", "n": 7}, {"s": "SMALL", "n": 2}, {"s": "SMALL", "n": 4},
-    {"s": "BIG", "n": 9}, {"s": "BIG", "n": 6}, {"s": "SMALL", "n": 0},
-    {"s": "BIG", "n": 8}, {"s": "SMALL", "n": 3}, {"s": "SMALL", "n": 1},
-    {"s": "BIG", "n": 5}, {"s": "BIG", "n": 7}, {"s": "SMALL", "n": 4}
+    {"s": "BIG", "n": 9}, {"s": "SMALL", "n": 2}, {"s": "SMALL", "n": 4},
+    {"s": "BIG", "n": 6}, {"s": "BIG", "n": 8}, {"s": "SMALL", "n": 0},
+    {"s": "BIG", "n": 7}, {"s": "SMALL", "n": 3}, {"s": "SMALL", "n": 1},
+    {"s": "BIG", "n": 5}, {"s": "BIG", "n": 9}, {"s": "SMALL", "n": 4}
 ]
 
 # ─── HISTORY DATA STORE ───
@@ -48,9 +47,6 @@ last_processed_period = None
 last_pred_signal = None
 last_pred_num = None
 
-# ============================================================
-#  API HISTORY POPULATOR (হিস্ট্রি লোড করার জন্য)
-# ============================================================
 def init_history_data():
     """বোট চালু হওয়ার সাথে সাথে ২০টি রেজাল্ট ফেচ করে হিস্ট্রি ফিল করে"""
     global history_data
@@ -68,104 +64,119 @@ def init_history_data():
                     'number': num,
                     'side': "BIG" if num >= 5 else "SMALL"
                 })
-            print(f"Successfully loaded {len(history_data)} past history items.")
+            print(f"Successfully loaded {len(history_data)} history items.")
     except Exception as e:
         print("History Init Fetch Error:", e)
 
 # ============================================================
-#  ENGINE 1: DARK X VIP (TITAN ULTRA FIXED)
+#  ENGINE 1: DARK X VIP (TITAN ULTRA Core)
 # ============================================================
 def dark_x_engine():
-    """TITAN ULTRA Core Matching Logic"""
     if not history_data:
-        # ফলব্যাক যদি কোনো হিস্ট্রি না থাকে
+        return "BIG", 6, 99
+
+    if current_loss_streak >= 1:
+        last_side = history_data[0]['side']
+        pred_side = "BIG" if last_side == "SMALL" else "BIG"
+        pred_num = 6 if pred_side == "BIG" else 2
+        return pred_side, pred_num, 99
+
+    big_cnt = sum(1 for d in history_data[:5] if d['side'] == 'BIG')
+    if big_cnt >= 2:
+        return "BIG", 6, 95
+    else:
         return "SMALL", 3, 90
-    
-    latest_num = history_data[0]['number']
-    latest_side = history_data[0]['side']
-    
-    # লাস্ট রেজাল্ট থেকে রিভার্সাল ও গ্যাপ ট্র্যাকিং
-    if len(history_data) >= 3:
-        last3 = [d['side'] for d in history_data[:3]]
-        if last3[0] == last3[1] == "BIG":
-            return "SMALL", 3, 90
-        elif last3[0] == last3[1] == "SMALL":
-            return "BIG", 7, 90
-
-    # গ্যাপ ও সিকোয়েন্স কাউন্টার
-    pred_side = "SMALL" if latest_side == "BIG" else "BIG"
-    pred_num = 3 if pred_side == "SMALL" else 7
-    return pred_side, pred_num, 90
 
 # ============================================================
-#  ENGINE 2: FUKD BY SAAD (PRO AI FIXED)
-# ============================================================
-def fukd_saad_engine():
-    """Ultimate Pro AI Matching Logic"""
-    if not history_data:
-        return "BIG", 6, 76
-    
-    # ম্যাথ-সিকোয়েন্স মেথড
-    num_sum = sum([d['number'] for d in history_data[:3]])
-    math_val = num_sum % 10
-    
-    final_pred = "BIG" if math_val >= 5 else "SMALL"
-    final_num = math_val if (math_val >= 5 and final_pred == "BIG") or (math_val < 5 and final_pred == "SMALL") else (6 if final_pred == "BIG" else 3)
-    
-    return final_pred, final_num, 78
-
-# ============================================================
-#  ENGINE 3: RGB VIP HACK (ANSH BOSS FIXED)
+#  ENGINE 2: RGB VIP HACK (ANSH BOSS)
 # ============================================================
 def rgb_vip_hack_engine():
-    """ANSH BOSS Real VIP Predictor Sync"""
     now = datetime.now(timezone.utc)
     start_of_day = datetime(now.year, now.month, now.day, tzinfo=timezone.utc)
     diff = int((now - start_of_day).total_seconds())
     idx = (diff // 60) + 1
-    
-    # ANSH BOSS 1 MIN 12-Step Dynamic Math Sync
+
     pattern_idx = idx % 12
     base_pred = BASE_PATTERN[pattern_idx]
-    
-    # হিস্ট্রি প্যাটার্ন ওভাররাইড (যদি লস স্ট্রিক থাকে)
-    if history_data and len(history_data) >= 2:
-        if history_data[0]['side'] == history_data[1]['side']:
-            final_pred = "SMALL" if history_data[0]['side'] == "BIG" else "BIG"
-            final_num = 3 if final_pred == "SMALL" else 8
-            return final_pred, final_num, 85
+
+    if history_data:
+        latest_num = history_data[0]['number']
+        if latest_num in [3, 4, 7, 8]:
+            return "BIG", 9, 85
 
     return base_pred["s"], base_pred["n"], 85
 
 # ============================================================
-#  MASTER VOTING SYSTEM
+#  ENGINE 3: FUKD BY SAAD (6-Engine Sub-Voting System)
+# ============================================================
+def fukd_6sub_engines():
+    """৬টি সাব-ইঞ্জিনের ভোট নিয়ে ১টি ফাইনাল FUKD প্রেডিকশন বের করা"""
+    if not history_data:
+        return "BIG", 8, 88
+
+    sub_votes = {'BIG': 0, 'SMALL': 0}
+
+    # 1. Core Power
+    core_side = history_data[0]['side']
+    sub_votes[core_side] += 1
+
+    # 2. Smart Engine
+    smart_side = "SMALL" if history_data[0]['number'] >= 5 else "BIG"
+    sub_votes[smart_side] += 1
+
+    # 3. Hybrid Engine
+    avg = sum([d['number'] for d in history_data[:3]]) / 3.0
+    hybrid_side = "BIG" if avg >= 4.5 else "SMALL"
+    sub_votes[hybrid_side] += 1
+
+    # 4. Master Engine
+    master_side = "SMALL" if (len(history_data) >= 2 and history_data[0]['side'] == history_data[1]['side'] and history_data[0]['side'] == "BIG") else "BIG"
+    sub_votes[master_side] += 1
+
+    # 5. Delta VIP
+    period_last_digit = int(history_data[0]['period'][-1]) if history_data else 0
+    delta_side = "BIG" if (period_last_digit % 2 == 0) else "SMALL"
+    sub_votes[delta_side] += 1
+
+    # 6. Quantum Engine
+    quantum_val = (history_data[0]['number'] * 7 + 3) % 10
+    quantum_side = "BIG" if quantum_val >= 5 else "SMALL"
+    sub_votes[quantum_side] += 1
+
+    # ৬টি সাব-ইঞ্জিনের মেজোরিটি সিদ্ধান্ত
+    fukd_pred = max(sub_votes, key=sub_votes.get)
+    fukd_num = 8 if fukd_pred == "BIG" else 2
+    fukd_conf = 88
+
+    return fukd_pred, fukd_num, fukd_conf
+
+# ============================================================
+#  MAIN MASTER VOTING SYSTEM (3 Main Engines)
 # ============================================================
 def master_voting_system():
     dark_pred, dark_num, dark_conf = dark_x_engine()
-    fukd_pred, fukd_num, fukd_conf = fukd_saad_engine()
     rgb_pred, rgb_num, rgb_conf = rgb_vip_hack_engine()
-    
+    fukd_pred, fukd_num, fukd_conf = fukd_6sub_engines()
+
     votes = {'BIG': 0, 'SMALL': 0}
     engines_detail = {
         'DARK X VIP': {'prediction': dark_pred, 'number': dark_num, 'confidence': dark_conf},
         'FUKD BY SAAD (6-Engine)': {'prediction': fukd_pred, 'number': fukd_num, 'confidence': fukd_conf},
         'RGB VIP HACK': {'prediction': rgb_pred, 'number': rgb_num, 'confidence': rgb_conf}
     }
-    
+
     votes[dark_pred] += 1
     votes[fukd_pred] += 1
     votes[rgb_pred] += 1
-    
-    # মেজোরিটি ডিসিশন
+
     final_pred = max(votes, key=votes.get)
-    
-    # নাম্বার ও কনফিডেন্স সিলেকশন
-    matching_nums = [d['number'] for d in engines_detail.values() if d['prediction'] == final_pred]
-    final_num = matching_nums[0] if matching_nums else (7 if final_pred == "BIG" else 3)
-    
-    total_conf = sum([d['confidence'] for d in engines_detail.values()])
+
+    matching_nums = [data['number'] for data in engines_detail.values() if data['prediction'] == final_pred]
+    final_num = matching_nums[0] if matching_nums else (6 if final_pred == "BIG" else 3)
+
+    total_conf = sum([data['confidence'] for data in engines_detail.values()])
     final_conf = int(total_conf / 3)
-    
+
     return {
         'prediction': final_pred,
         'number': final_num,
@@ -175,7 +186,7 @@ def master_voting_system():
     }
 
 # ============================================================
-#  TELEGRAM FUNCTIONS
+#  TELEGRAM & API FUNCTIONS
 # ============================================================
 def send_telegram(message):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
@@ -188,7 +199,7 @@ def send_telegram(message):
 def fetch_real_result():
     timestamp = str(int(time.time() * 1000))
     raw_url = RAW_API + timestamp
-    
+
     try:
         res = requests.get(raw_url, timeout=4)
         if res.status_code == 200:
@@ -223,22 +234,22 @@ def get_period_info():
     return period_id, idx
 
 # ─── STARTUP ───
-init_history_data()  # বোট স্টার্টের সময়ই ২০টি হিস্ট্রি ফিল করবে
+init_history_data()
 
 send_telegram("🚀 *3-ENGINE HYBRID VIP BOT ACTIVATED!*")
 
 while True:
     try:
         current_period, idx = get_period_info()
-        
+
         if current_period != last_processed_period:
-            
+
             if last_processed_period is not None:
                 time.sleep(3)
-                
+
                 real_period = None
                 actual_num = None
-                
+
                 for _ in range(5):
                     real_period, actual_num = fetch_real_result()
                     if real_period and real_period[-5:] == last_processed_period[-5:]:
@@ -248,7 +259,7 @@ while True:
                 if real_period and actual_num is not None:
                     actual_size = "BIG" if actual_num >= 5 else "SMALL"
                     is_win = (last_pred_signal == actual_size)
-                    
+
                     if is_win:
                         total_wins += 1
                         current_win_streak += 1
@@ -259,11 +270,10 @@ while True:
                         current_loss_streak += 1
                         current_win_streak = 0
                         status_str = f"🔴 LOSS {current_loss_streak}!"
-                    
+
                     total_games = total_wins + total_losses
                     win_rate = (total_wins / total_games) * 100 if total_games > 0 else 0
-                    
-                    # হিস্ট্রি আপডেট
+
                     history_data.insert(0, {
                         'period': last_processed_period,
                         'number': actual_num,
@@ -271,7 +281,7 @@ while True:
                     })
                     if len(history_data) > 20:
                         history_data.pop()
-                    
+
                     res_msg = (
                         f"🎯 *RESULT UPDATE*\n"
                         f"━━━━━━━━━━━━━━━━━━━━\n"
@@ -294,11 +304,11 @@ while True:
             final_conf = pred_result['confidence']
             votes = pred_result['votes']
             engines = pred_result['engines']
-            
+
             engine_votes = ""
             for name, data in engines.items():
                 engine_votes += f"├─ {name}: `{data['prediction']}` ({data['number']}) `{data['confidence']}%`\n"
-            
+
             msg = (
                 f"🔥 *3-ENGINE HYBRID VIP* 🔥\n"
                 f"━━━━━━━━━━━━━━━━━━━━\n"
@@ -321,7 +331,7 @@ while True:
                 f"💎 3-ENGINE HYBRID VIP"
             )
             send_telegram(msg)
-            
+
             last_processed_period = current_period
             last_pred_signal = final_pred
             last_pred_num = final_num
