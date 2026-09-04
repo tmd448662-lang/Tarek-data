@@ -1,83 +1,169 @@
-import asyncio
-import time
-import requests
 import os
-import random
+import requests
 import json
-from datetime import datetime
+import time
+import random
+from datetime import datetime, timezone
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import threading
-from telegram import Bot
-from telegram.error import TelegramError
 
-# ==================== RENDER WEB SERVICE PORT BINDING ====================
-class DummyServer(BaseHTTPRequestHandler):
+# ─── DUMMY WEB SERVER FOR RENDER ───
+class HealthCheckHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.end_headers()
-        self.wfile.write(b"3-ENGINE HYBRID VIP BOT is running!")
+        self.wfile.write(b"Bot is active!")
 
 def run_dummy_server():
     port = int(os.environ.get("PORT", 8080))
-    server = HTTPServer(('0.0.0.0', port), DummyServer)
+    server = HTTPServer(("0.0.0.0", port), HealthCheckHandler)
     server.serve_forever()
 
 threading.Thread(target=run_dummy_server, daemon=True).start()
 
-# ==================== KEEP-ALIVE ====================
-def keep_alive():
-    while True:
-        try:
-            time.sleep(600)
-            port = int(os.environ.get("PORT", 8080))
-            requests.get(f"http://localhost:{port}/", timeout=5)
-        except:
-            pass
-
-threading.Thread(target=keep_alive, daemon=True).start()
-
-# ==================== BOT CONFIG ====================
+# ─── CONFIGURATION ───
 BOT_TOKEN = "8386058038:AAEwayH-C4AUr7L_tx6Ecz__xpIXnrekJw0"
 CHAT_ID = "5012028880"
-RAW_API = "https://draw.ar-lottery01.com/WinGo/WinGo_1M/GetHistoryIssuePage.json"
+SCRAPER_API_KEY = "809f9c620ed6b5fe5a72bc368e8eabee"
 
-bot = Bot(token=BOT_TOKEN)
+RAW_API = "https://draw.ar-lottery01.com/WinGo/WinGo_1M/GetHistoryIssuePage.json?t="
 
-# ==================== GLOBAL STATS ====================
+# ─── BASE PATTERN (12-STEP) ───
+BASE_PATTERN = [
+    {"s": "BIG", "n": 7}, {"s": "SMALL", "n": 2}, {"s": "SMALL", "n": 4},
+    {"s": "BIG", "n": 9}, {"s": "BIG", "n": 6}, {"s": "SMALL", "n": 0},
+    {"s": "BIG", "n": 8}, {"s": "SMALL", "n": 3}, {"s": "SMALL", "n": 1},
+    {"s": "BIG", "n": 5}, {"s": "BIG", "n": 7}, {"s": "SMALL", "n": 4}
+]
+
+# ─── HISTORY DATA STORE ───
+history_data = []
+last_10_results = []
+
+# ─── GLOBAL STATS ───
 total_wins = 0
 total_losses = 0
-jackpots = 0
-loss_streak = 0
-current_level = 1
-total_rounds = 0
-history_data = []
-
-last_predicted_period = None
-last_predicted_signal = None
-last_predicted_num = None
-prediction_sent_for_period = {}
-
-# ==================== HOURLY STATS ====================
-hourly_stats = {
-    'wins': 0,
-    'losses': 0,
-    'total': 0,
-    'max_win_streak': 0,
-    'max_loss_streak': 0,
-    'current_streak': 0,
-    'streak_type': 'WIN'
-}
-last_hour_report_time = time.time()
+current_win_streak = 0
+current_loss_streak = 0
+last_processed_period = None
+last_pred_signal = None
+last_pred_num = None
 
 # ============================================================
-#  ENGINE 1: DARK X VIP
+#  DYNAMIC RGB VIP HACK ENGINE
 # ============================================================
-def dark_x_engine(data):
-    """DARK X VIP ENGINE - DARK X BHAI VIP V1.3"""
-    if len(data) < 5:
-        return {"prediction": "BIG", "confidence": 50, "number": 7}
+def rgb_vip_hack_engine():
+    """
+    RGB VIP HACK - Dynamic Pattern Based
+    ৫টি ফ্যাক্টর ভোট দিয়ে ফাইনাল সিদ্ধান্ত
+    """
+    if len(history_data) < 12:
+        # কম ডেটা থাকলে বেসিক প্রেডিকশন
+        now = datetime.now(timezone.utc)
+        start_of_day = datetime(now.year, now.month, now.day, tzinfo=timezone.utc)
+        diff = int((now - start_of_day).total_seconds())
+        idx = (diff // 60) + 1
+        pattern_idx = (idx + 5) % 12
+        pred = BASE_PATTERN[pattern_idx]
+        return pred["s"], pred["n"], 60
     
-    sides = [d['side'] for d in data[:10]]
+    # ===== ৫টি ফ্যাক্টর =====
+    votes = {'BIG': 0, 'SMALL': 0}
+    numbers = [d['number'] for d in history_data[:10]]
+    sides = [d['side'] for d in history_data[:10]]
+    
+    # ---- 1. BASE PATTERN (১২-স্টেপ) ----
+    now = datetime.now(timezone.utc)
+    start_of_day = datetime(now.year, now.month, now.day, tzinfo=timezone.utc)
+    diff = int((now - start_of_day).total_seconds())
+    idx = (diff // 60) + 1
+    pattern_idx = (idx + 5) % 12
+    base_pred = BASE_PATTERN[pattern_idx]
+    votes[base_pred["s"]] += 2  # Base Pattern-এর ওয়েট বেশি
+    base_num = base_pred["n"]
+    
+    # ---- 2. STREAK DETECTION ----
+    streak = 1
+    for i in range(1, len(sides[:8])):
+        if sides[i] == sides[i-1]:
+            streak += 1
+        else:
+            break
+    
+    if streak >= 5:
+        streak_pred = "SMALL" if sides[0] == "BIG" else "BIG"
+        votes[streak_pred] += 2
+    elif streak >= 3:
+        streak_pred = "SMALL" if sides[0] == "BIG" else "BIG"
+        votes[streak_pred] += 1
+    
+    # ---- 3. ALTERNATING PATTERN ----
+    if len(sides) >= 5:
+        alt_pattern = True
+        for i in range(1, 5):
+            if sides[i] == sides[i-1]:
+                alt_pattern = False
+                break
+        if alt_pattern:
+            alt_pred = "SMALL" if sides[4] == "BIG" else "BIG"
+            votes[alt_pred] += 1
+    
+    # ---- 4. MIRROR PATTERN ----
+    if len(sides) >= 5 and sides[0] == sides[4] and sides[1] == sides[3]:
+        mirror_pred = "SMALL" if sides[0] == "BIG" else "BIG"
+        votes[mirror_pred] += 1
+    
+    # ---- 5. GAP ANALYSIS (Missing Numbers) ----
+    missing_nums = [n for n in range(10) if n not in numbers[:10]]
+    if missing_nums:
+        gap_num = missing_nums[0]
+        votes["BIG" if gap_num >= 5 else "SMALL"] += 1
+    
+    # ---- 6. LEVEL 3 SAFETY NET ----
+    if current_loss_streak >= 3:
+        opposite = "SMALL" if max(votes, key=votes.get) == "BIG" else "BIG"
+        votes[opposite] += 2
+    
+    # ---- ফাইনাল ডিসিশন ----
+    final_pred = max(votes, key=votes.get)
+    
+    # ---- ডায়নামিক নাম্বার ----
+    if final_pred == "BIG":
+        all_bigs = [5, 6, 7, 8, 9]
+        recent_bigs = [n for n in numbers[:5] if n >= 5]
+        available = [n for n in all_bigs if n not in recent_bigs]
+        if available:
+            final_num = random.choice(available)
+        else:
+            final_num = random.choice(all_bigs)
+    else:
+        all_smalls = [0, 1, 2, 3, 4]
+        recent_smalls = [n for n in numbers[:5] if n < 5]
+        available = [n for n in all_smalls if n not in recent_smalls]
+        if available:
+            final_num = random.choice(available)
+        else:
+            final_num = random.choice(all_smalls)
+    
+    # ---- কনফিডেন্স ----
+    total_votes = sum(votes.values())
+    if total_votes > 0:
+        confidence = 75 + (max(votes.values()) / total_votes * 20)
+    else:
+        confidence = 70
+    
+    return final_pred, final_num, int(confidence)
+
+# ============================================================
+#  OTHER ENGINES (DARK X, FUKD BY SAAD)
+# ============================================================
+
+def dark_x_engine():
+    """DARK X VIP ENGINE"""
+    if len(history_data) < 5:
+        return "BIG", 7, 50
+    
+    sides = [d['side'] for d in history_data[:10]]
     last1 = sides[0] if len(sides) > 0 else "BIG"
     last2 = sides[1] if len(sides) > 1 else "BIG"
     last3 = sides[2] if len(sides) > 2 else "BIG"
@@ -86,9 +172,9 @@ def dark_x_engine(data):
     small_count = sum(1 for s in sides[:8] if s == "SMALL")
     trend = "BIG" if big_count > small_count else "SMALL"
     
-    if current_level == 3:
+    if current_loss_streak >= 3:
         pred = "SMALL" if last1 == "BIG" else "BIG"
-        return {"prediction": pred, "confidence": 95, "number": pred == "BIG" and 8 or 1}
+        return pred, 8 if pred == "BIG" else 1, 95
     
     if last1 == last2 and last2 == last3:
         pred = "SMALL" if last1 == "BIG" else "BIG"
@@ -110,39 +196,35 @@ def dark_x_engine(data):
             pred = trend
             conf = 70
     
-    if loss_streak <= -2:
+    if current_loss_streak >= 2:
         pred = "SMALL" if pred == "BIG" else "BIG"
         conf = min(98, conf + 15)
     
-    num = pred == "BIG" and 7 or 2
-    
-    return {"prediction": pred, "confidence": conf, "number": num}
+    num = 7 if pred == "BIG" else 2
+    return pred, num, conf
 
-# ============================================================
-#  ENGINE 2: FUKD BY SAAD (6 Engine System)
-# ============================================================
-def fukd_saad_engine(data):
-    """FUKD BY SAAD - 6 Engine System (Final Result = 1 Vote)"""
-    if len(data) < 8:
-        return {"prediction": "BIG", "confidence": 60, "number": 5}
+def fukd_saad_engine():
+    """FUKD BY SAAD - 6 Engine System"""
+    if len(history_data) < 8:
+        return "BIG", 5, 60
     
-    sides = [d['side'] for d in data[:10]]
-    numbers = [d['number'] for d in data[:10]]
+    sides = [d['side'] for d in history_data[:10]]
+    numbers = [d['number'] for d in history_data[:10]]
     
     votes = {'BIG': 0, 'SMALL': 0}
     weights = [9, 7, 5, 3, 2, 1, 1, 1]
     
-    # 1. CORE ENGINE
+    # CORE
     score = 0
-    for i in range(min(8, len(data))):
-        if data[i]['number'] >= 5:
+    for i in range(min(8, len(history_data))):
+        if history_data[i]['number'] >= 5:
             score += weights[i]
         else:
             score -= weights[i]
     core_pred = "BIG" if score >= 0 else "SMALL"
     votes[core_pred] += 1
     
-    # 2. SMART ENGINE
+    # SMART
     if len(sides) >= 4 and sides[0] == sides[3] and sides[1] == sides[2]:
         smart_pred = "SMALL" if sides[0] == "BIG" else "BIG"
     elif sides[0] == sides[1] == sides[2]:
@@ -151,29 +233,29 @@ def fukd_saad_engine(data):
         smart_pred = "SMALL" if sides[0] == "BIG" else "BIG"
     votes[smart_pred] += 1
     
-    # 3. HYBRID ENGINE
+    # HYBRID
     math_num = (numbers[0] + numbers[1]) % 10
     hybrid_pred = "BIG" if math_num >= 5 else "SMALL"
     votes[hybrid_pred] += 1
     
-    # 4. MASTER ENGINE
+    # MASTER
     score2 = 0
-    for i in range(min(8, len(data))):
-        if data[i]['number'] >= 5:
+    for i in range(min(8, len(history_data))):
+        if history_data[i]['number'] >= 5:
             score2 += (8 - i)
         else:
             score2 -= (8 - i)
     master_pred = "BIG" if score2 >= 0 else "SMALL"
     votes[master_pred] += 1
     
-    # 5. ADVANCED ENGINE
-    if loss_streak >= 3:
+    # ADVANCED
+    if current_loss_streak >= 3:
         advanced_pred = "SMALL" if score2 >= 0 else "BIG"
     else:
         advanced_pred = "BIG" if score2 >= 0 else "SMALL"
     votes[advanced_pred] += 1
     
-    # 6. ULTIMATE ENGINE
+    # ULTIMATE
     streak = 1
     for i in range(1, len(sides[:8])):
         if sides[i] == sides[i-1]:
@@ -196,48 +278,19 @@ def fukd_saad_engine(data):
     else:
         num = random.choice([0, 1, 2, 3, 4])
     
-    return {"prediction": final_pred, "confidence": conf, "number": num}
-
-# ============================================================
-#  ENGINE 3: RGB VIP HACK (মূল ফাইল থেকে ঠিক যেমন)
-# ============================================================
-def rgb_vip_hack_engine(data):
-    """RGB VIP HACK - VIP NUMBER_decoded.html থেকে ঠিক যেমন"""
-    if len(data) < 12:
-        return {"prediction": "BIG", "confidence": 60, "number": 6}
-    
-    # 12-STEP PATTERN (মূল ফাইল থেকে ঠিক যেমন)
-    PATTERN = [
-        {"s": "BIG", "n": 7}, {"s": "SMALL", "n": 2}, {"s": "SMALL", "n": 4},
-        {"s": "BIG", "n": 9}, {"s": "BIG", "n": 6}, {"s": "SMALL", "n": 0},
-        {"s": "BIG", "n": 8}, {"s": "SMALL", "n": 3}, {"s": "SMALL", "n": 1},
-        {"s": "BIG", "n": 5}, {"s": "BIG", "n": 7}, {"s": "SMALL", "n": 4}
-    ]
-    
-    # পিরিয়ড থেকে ইনডেক্স
-    period = data[0]['issueNumber']
-    if len(str(period)) >= 3:
-        idx = int(str(period)[-3:]) % 12
-    else:
-        idx = int(str(period)) % 12
-    
-    pred = PATTERN[idx]
-    
-    # টাইম বেইজড কনফিডেন্স (মূল ফাইল থেকে)
-    current_sec = int(time.time()) % 60
-    conf = 78 if current_sec > 30 else 85
-    
-    return {"prediction": pred["s"], "confidence": conf, "number": pred["n"]}
+    return final_pred, num, conf
 
 # ============================================================
 #  MASTER VOTING SYSTEM (3 Engines)
 # ============================================================
-def master_voting_system(data):
-    """৩টি ইঞ্জিনের ভোট - DARK X + FUKD BY SAAD + RGB VIP HACK"""
+
+def master_voting_system():
+    """৩টি ইঞ্জিনের ভোট"""
     
-    engine1 = dark_x_engine(data)        # DARK X VIP
-    engine2 = fukd_saad_engine(data)     # FUKD BY SAAD
-    engine3 = rgb_vip_hack_engine(data)  # RGB VIP HACK (মূল মতো)
+    # ৩টি ইঞ্জিন থেকে ৩টি ভোট
+    dark_pred, dark_num, dark_conf = dark_x_engine()
+    fukd_pred, fukd_num, fukd_conf = fukd_saad_engine()
+    rgb_pred, rgb_num, rgb_conf = rgb_vip_hack_engine()  # ← Dynamic RGB
     
     votes = {'BIG': 0, 'SMALL': 0}
     numbers = []
@@ -245,22 +298,22 @@ def master_voting_system(data):
     engines_detail = {}
     
     # DARK X VIP
-    votes[engine1['prediction']] += 1
-    numbers.append(engine1['number'])
-    confidences.append(engine1['confidence'])
-    engines_detail['DARK X VIP'] = engine1
+    votes[dark_pred] += 1
+    numbers.append(dark_num)
+    confidences.append(dark_conf)
+    engines_detail['DARK X VIP'] = {'prediction': dark_pred, 'number': dark_num, 'confidence': dark_conf}
     
     # FUKD BY SAAD
-    votes[engine2['prediction']] += 1
-    numbers.append(engine2['number'])
-    confidences.append(engine2['confidence'])
-    engines_detail['FUKD BY SAAD (6-Engine)'] = engine2
+    votes[fukd_pred] += 1
+    numbers.append(fukd_num)
+    confidences.append(fukd_conf)
+    engines_detail['FUKD BY SAAD (6-Engine)'] = {'prediction': fukd_pred, 'number': fukd_num, 'confidence': fukd_conf}
     
-    # RGB VIP HACK
-    votes[engine3['prediction']] += 1
-    numbers.append(engine3['number'])
-    confidences.append(engine3['confidence'])
-    engines_detail['RGB VIP HACK'] = engine3
+    # RGB VIP HACK (Dynamic)
+    votes[rgb_pred] += 1
+    numbers.append(rgb_num)
+    confidences.append(rgb_conf)
+    engines_detail['RGB VIP HACK'] = {'prediction': rgb_pred, 'number': rgb_num, 'confidence': rgb_conf}
     
     # ফাইনাল ডিসিশন
     final_pred = max(votes, key=votes.get)
@@ -288,257 +341,179 @@ def master_voting_system(data):
         'engines': engines_detail
     }
 
-# ==================== API FETCH ====================
-def fetch_api_data():
+# ============================================================
+#  TELEGRAM FUNCTIONS
+# ============================================================
+
+def send_telegram(message):
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+    payload = {"chat_id": CHAT_ID, "text": message, "parse_mode": "Markdown"}
     try:
-        res = requests.get(RAW_API + "?t=" + str(int(time.time() * 1000)), timeout=5)
+        requests.post(url, json=payload, timeout=5)
+    except Exception as e:
+        print("Telegram Send Error:", e)
+
+def fetch_real_result():
+    timestamp = str(int(time.time() * 1000))
+    raw_url = RAW_API + timestamp
+    
+    try:
+        res = requests.get(raw_url, timeout=4)
         if res.status_code == 200:
             data = res.json()
-            return data.get("data", {}).get("list", [])
-    except Exception as e:
-        print(f"API Error: {e}")
-    return []
-
-# ==================== HOURLY REPORT ====================
-async def send_hourly_report():
-    global hourly_stats, last_hour_report_time
-    
-    if time.time() - last_hour_report_time >= 3600:
-        total = hourly_stats['total']
-        wins = hourly_stats['wins']
-        losses = hourly_stats['losses']
-        win_rate = (wins / total * 100) if total > 0 else 0
-        
-        report_msg = (
-            f"📊 *HOURLY PERFORMANCE REPORT*\n"
-            f"━━━━━━━━━━━━━━━━━━━━\n"
-            f"🕐 *TIME:* {datetime.now().strftime('%I:%M %p')}\n"
-            f"━━━━━━━━━━━━━━━━━━━━\n"
-            f"🔄 *TOTAL ROUNDS:* `{total}`\n"
-            f"✅ *WINS:* `{wins}`\n"
-            f"❌ *LOSSES:* `{losses}`\n"
-            f"📈 *WIN RATE:* `{win_rate:.1f}%`\n"
-            f"━━━━━━━━━━━━━━━━━━━━\n"
-            f"🔥 *BEST WIN STREAK:* `{hourly_stats['max_win_streak']}x`\n"
-            f"📉 *WORST LOSS STREAK:* `{hourly_stats['max_loss_streak']}x`\n"
-            f"🔥 *CURRENT STREAK:* `{hourly_stats['current_streak']}x {hourly_stats['streak_type']}`\n"
-            f"━━━━━━━━━━━━━━━━━━━━\n"
-            f"🗳️ *3-ENGINE VOTING SYSTEM*\n"
-            f"├─ DARK X VIP\n"
-            f"├─ FUKD BY SAAD (6-Engine)\n"
-            f"└─ RGB VIP HACK (12-Step Pattern)\n"
-            f"💎 3-ENGINE HYBRID VIP V11"
-        )
-        
-        try:
-            await bot.send_message(chat_id=CHAT_ID, text=report_msg, parse_mode="Markdown")
-        except TelegramError as e:
-            print(f"Hourly report error: {e}")
-        
-        hourly_stats = {
-            'wins': 0, 'losses': 0, 'total': 0,
-            'max_win_streak': 0, 'max_loss_streak': 0,
-            'current_streak': 0, 'streak_type': 'WIN'
-        }
-        last_hour_report_time = time.time()
-
-# ==================== MAIN BOT LOOP ====================
-async def prediction_bot():
-    global total_wins, total_losses, jackpots, loss_streak, current_level
-    global total_rounds, history_data, last_predicted_period
-    global last_predicted_signal, last_predicted_num, prediction_sent_for_period
-
-    print("🔥 3-ENGINE HYBRID VIP BOT STARTED...")
-    print("━━━━━━━━━━━━━━━━━━━━")
-    print("🗳️ VOTING SYSTEM:")
-    print("├─ DARK X VIP → 1 Vote")
-    print("├─ FUKD BY SAAD → 1 Vote")
-    print("└─ RGB VIP HACK → 1 Vote (12-Step Pattern)")
-    print("━━━━━━━━━━━━━━━━━━━━")
+            list_data = data.get("data", {}).get("list", [])
+            if list_data:
+                return str(list_data[0].get("issueNumber")), int(list_data[0].get("number"))
+    except Exception:
+        pass
 
     try:
-        await bot.send_message(
-            chat_id=CHAT_ID,
-            text=(
-                "🔥 *3-ENGINE HYBRID VIP BOT* 🔥\n"
-                "━━━━━━━━━━━━━━━━━━━━\n"
-                "🗳️ *VOTING SYSTEM*\n"
-                "├─ DARK X VIP\n"
-                "├─ FUKD BY SAAD (6-Engine)\n"
-                "└─ RGB VIP HACK (12-Step Pattern)\n"
-                "━━━━━━━━━━━━━━━━━━━━\n"
-                "⚡ MODE: 1 MIN WINGO\n"
-                "📊 HOURLY REPORT: ACTIVE\n"
-                "━━━━━━━━━━━━━━━━━━━━\n"
-                "⏳ WAITING FOR FIRST SIGNAL..."
-            ),
-            parse_mode="Markdown"
-        )
-    except TelegramError as e:
-        print(f"Startup error: {e}")
+        proxy_url = f"http://api.scraperapi.com?api_key={SCRAPER_API_KEY}&url={requests.utils.quote(raw_url)}"
+        res = requests.get(proxy_url, timeout=8)
+        if res.status_code == 200:
+            data = res.json()
+            list_data = data.get("data", {}).get("list", [])
+            if list_data:
+                return str(list_data[0].get("issueNumber")), int(list_data[0].get("number"))
+    except Exception as e:
+        print("Fetch Error:", e)
 
-    while True:
-        try:
-            current_sec = int(time.time()) % 60
-            sleep_time = 60 - current_sec + 3
-            await asyncio.sleep(sleep_time)
+    return None, None
 
-            history = fetch_api_data()
-            if not history:
-                continue
+# ============================================================
+#  MAIN LOOP
+# ============================================================
 
-            latest_issue = str(history[0]['issueNumber'])
-            actual_num = int(history[0]['number'])
-            actual_type = "BIG" if actual_num >= 5 else "SMALL"
+def get_period_info():
+    now = datetime.now(timezone.utc)
+    start_of_day = datetime(now.year, now.month, now.day, tzinfo=timezone.utc)
+    diff = int((now - start_of_day).total_seconds())
+    interval = 60
+    idx = (diff // interval) + 1
+    y = now.strftime("%Y")
+    m = now.strftime("%m")
+    d = now.strftime("%d")
+    period_id = f"{y}{m}{d}{idx:05d}"
+    return period_id, idx
 
-            history_data = []
-            for h in history[:20]:
-                num = int(h['number'])
-                history_data.append({
-                    'issueNumber': str(h['issueNumber']),
-                    'number': num,
-                    'side': "BIG" if num >= 5 else "SMALL"
-                })
+# ─── START ───
+send_telegram("🚀 *3-ENGINE HYBRID VIP BOT ACTIVATED!*")
+send_telegram(
+    "🔥 *3-ENGINE HYBRID VIP* 🔥\n"
+    "━━━━━━━━━━━━━━━━━━━━\n"
+    "🗳️ *VOTING SYSTEM*\n"
+    "├─ DARK X VIP\n"
+    "├─ FUKD BY SAAD (6-Engine)\n"
+    "└─ RGB VIP HACK (Dynamic)\n"
+    "━━━━━━━━━━━━━━━━━━━━\n"
+    "⚡ MODE: 1 MIN WINGO\n"
+    "📊 HOURLY REPORT: ACTIVE\n"
+    "━━━━━━━━━━━━━━━━━━━━\n"
+    "⏳ WAITING FOR FIRST SIGNAL..."
+)
 
-            # ===== RESULT CHECK =====
-            if last_predicted_period == latest_issue and last_predicted_signal is not None:
-                
-                is_win = last_predicted_signal == actual_type
-                is_jackpot = (actual_num == last_predicted_num)
-                
-                if is_jackpot:
-                    jackpots += 1
-                    status = "⭐ JACKPOT"
-                    loss_streak = 0
-                    current_level = 1
-                elif is_win:
-                    total_wins += 1
-                    hourly_stats['wins'] += 1
-                    status = "🟢 WIN"
-                    loss_streak = 0 if loss_streak < 0 else loss_streak + 1
-                    current_level = 1
-                    
-                    if hourly_stats['streak_type'] == 'WIN':
-                        hourly_stats['current_streak'] += 1
-                    else:
-                        hourly_stats['current_streak'] = 1
-                        hourly_stats['streak_type'] = 'WIN'
-                    
-                    if hourly_stats['current_streak'] > hourly_stats['max_win_streak']:
-                        hourly_stats['max_win_streak'] = hourly_stats['current_streak']
-                else:
-                    total_losses += 1
-                    hourly_stats['losses'] += 1
-                    status = "🔴 LOSS"
-                    loss_streak = -1 if loss_streak > 0 else loss_streak - 1
-                    current_level = 3 if current_level >= 3 else current_level + 1
-                    
-                    if hourly_stats['streak_type'] == 'LOSS':
-                        hourly_stats['current_streak'] += 1
-                    else:
-                        hourly_stats['current_streak'] = 1
-                        hourly_stats['streak_type'] = 'LOSS'
-                    
-                    if hourly_stats['current_streak'] > hourly_stats['max_loss_streak']:
-                        hourly_stats['max_loss_streak'] = hourly_stats['current_streak']
-                
-                total_rounds += 1
-                hourly_stats['total'] += 1
-                
-                total_games = total_wins + total_losses
-                win_rate = (total_wins / total_games * 100) if total_games > 0 else 0.0
-                multiplier = "1x" if current_level == 1 else "3x" if current_level == 2 else "9x"
-                
-                result_msg = (
-                    f"🎯 *RESULT UPDATE*\n"
-                    f"━━━━━━━━━━━━━━━━━━━━\n"
-                    f"🆔 PERIOD: `#{latest_issue[-5:]}`\n"
-                    f"🎯 PREDICTED: `{last_predicted_signal}` → `{last_predicted_num}`\n"
-                    f"🎰 ACTUAL: `{actual_num}` (`{actual_type}`)\n"
-                    f"📌 RESULT: {status}\n"
-                    f"━━━━━━━━━━━━━━━━━━━━\n"
-                    f"📊 WIN RATE: `{win_rate:.1f}%` ({total_wins}W/{total_losses}L)\n"
-                    f"🔥 STREAK: `{loss_streak:+d}`\n"
-                    f"👑 LEVEL: `{current_level}` ({multiplier})\n"
-                    f"━━━━━━━━━━━━━━━━━━━━\n"
-                    f"🗳️ VOTING: 3 ENGINES\n"
-                    f"💎 3-ENGINE HYBRID VIP V11"
-                )
-                
-                try:
-                    await bot.send_message(chat_id=CHAT_ID, text=result_msg, parse_mode="Markdown")
-                    await asyncio.sleep(1)
-                except TelegramError:
-                    pass
-                
-                await send_hourly_report()
-                
-                last_predicted_period = None
-                last_predicted_signal = None
-                last_predicted_num = None
-
-            # ===== NEW PREDICTION =====
-            next_period = str(int(latest_issue) + 1)
+while True:
+    try:
+        current_period, idx = get_period_info()
+        
+        if current_period != last_processed_period:
             
-            if not prediction_sent_for_period.get(next_period, False):
+            # ১. আগের পিরিয়ডের RESULT চেক
+            if last_processed_period is not None:
+                time.sleep(4)
                 
-                pred = master_voting_system(history_data)
-                multiplier = "1x" if current_level == 1 else "3x" if current_level == 2 else "9x"
-                confidence_pct = int(pred['confidence'])
+                real_period = None
+                actual_num = None
                 
-                engine_votes = ""
-                for name, data in pred['engines'].items():
-                    engine_votes += f"├─ {name}: `{data['prediction']}` ({data['number']}) `{data['confidence']}%`\n"
-                
-                prediction_msg = (
-                    f"🔥 *3-ENGINE HYBRID VIP* 🔥\n"
-                    f"━━━━━━━━━━━━━━━━━━━━\n"
-                    f"🆔 PERIOD: `#{next_period[-5:]}`\n"
-                    f"━━━━━━━━━━━━━━━━━━━━\n"
-                    f"🗳️ *VOTING RESULT*\n"
-                    f"📊 BIG: `{pred['votes']['BIG']}` | SMALL: `{pred['votes']['SMALL']}`\n"
-                    f"━━━━━━━━━━━━━━━━━━━━\n"
-                    f"📈 *FINAL PREDICTION*\n"
-                    f"🎯 PREDICTION: `{pred['prediction']}`\n"
-                    f"🔢 TARGET NUMBER: `{pred['number']}`\n"
-                    f"⚡ CONFIDENCE: `{confidence_pct}%`\n"
-                    f"━━━━━━━━━━━━━━━━━━━━\n"
-                    f"🧠 *ENGINE VOTES*\n"
-                    f"{engine_votes}"
-                    f"━━━━━━━━━━━━━━━━━━━━\n"
-                    f"👑 LEVEL: `{current_level}` ({multiplier})\n"
-                    f"🔥 STREAK: `{loss_streak:+d}`\n"
-                    f"━━━━━━━━━━━━━━━━━━━━\n"
-                    f"⏳ RESULT AWAITING...\n"
-                    f"💎 3-ENGINE HYBRID VIP V11"
-                )
-                
-                last_predicted_period = next_period
-                last_predicted_signal = pred['prediction']
-                last_predicted_num = pred['number']
-                prediction_sent_for_period[next_period] = True
-                
-                try:
-                    await bot.send_message(chat_id=CHAT_ID, text=prediction_msg, parse_mode="Markdown")
-                except TelegramError:
-                    pass
+                for _ in range(5):
+                    real_period, actual_num = fetch_real_result()
+                    if real_period and real_period[-5:] == last_processed_period[-5:]:
+                        break
+                    time.sleep(2)
 
-            if len(prediction_sent_for_period) > 5:
-                oldest = min(prediction_sent_for_period.keys())
-                del prediction_sent_for_period[oldest]
+                if real_period and actual_num is not None:
+                    actual_size = "BIG" if actual_num >= 5 else "SMALL"
+                    is_win = (last_pred_signal == actual_size)
+                    
+                    if is_win:
+                        total_wins += 1
+                        current_win_streak += 1
+                        current_loss_streak = 0
+                        status_str = f"🟢 WIN {current_win_streak}!"
+                    else:
+                        total_losses += 1
+                        current_loss_streak += 1
+                        current_win_streak = 0
+                        status_str = f"🔴 LOSS {current_loss_streak}!"
+                    
+                    total_games = total_wins + total_losses
+                    win_rate = (total_wins / total_games) * 100 if total_games > 0 else 0
+                    
+                    # হিস্টোরি আপডেট
+                    history_data.insert(0, {
+                        'period': last_processed_period,
+                        'number': actual_num,
+                        'side': actual_size
+                    })
+                    if len(history_data) > 20:
+                        history_data.pop()
+                    
+                    res_msg = (
+                        f"🎯 *RESULT UPDATE*\n"
+                        f"━━━━━━━━━━━━━━━━━━━━\n"
+                        f"🆔 PERIOD: `#{last_processed_period[-5:]}`\n"
+                        f"🎯 PREDICTED: `{last_pred_signal}` → `{last_pred_num}`\n"
+                        f"🎰 ACTUAL: `{actual_num}` (`{actual_size}`)\n"
+                        f"📌 RESULT: {status_str}\n"
+                        f"━━━━━━━━━━━━━━━━━━━━\n"
+                        f"📊 WIN RATE: `{win_rate:.1f}%` ({total_wins}W/{total_losses}L)\n"
+                        f"🔥 STREAK: `{current_win_streak - current_loss_streak:+d}`\n"
+                        f"━━━━━━━━━━━━━━━━━━━━\n"
+                        f"🗳️ VOTING: 3 ENGINES\n"
+                        f"💎 3-ENGINE HYBRID VIP"
+                    )
+                    send_telegram(res_msg)
 
-        except Exception as e:
-            print(f"Loop Error: {e}")
-            await asyncio.sleep(5)
+            # ২. নতুন পিরিয়ডের PREDICTION
+            pred_result = master_voting_system()
+            final_pred = pred_result['prediction']
+            final_num = pred_result['number']
+            final_conf = pred_result['confidence']
+            votes = pred_result['votes']
+            engines = pred_result['engines']
+            
+            engine_votes = ""
+            for name, data in engines.items():
+                engine_votes += f"├─ {name}: `{data['prediction']}` ({data['number']}) `{data['confidence']}%`\n"
+            
+            msg = (
+                f"🔥 *3-ENGINE HYBRID VIP* 🔥\n"
+                f"━━━━━━━━━━━━━━━━━━━━\n"
+                f"🆔 PERIOD: `#{current_period[-5:]}`\n"
+                f"━━━━━━━━━━━━━━━━━━━━\n"
+                f"🗳️ *VOTING RESULT*\n"
+                f"📊 BIG: `{votes['BIG']}` | SMALL: `{votes['SMALL']}`\n"
+                f"━━━━━━━━━━━━━━━━━━━━\n"
+                f"📈 *FINAL PREDICTION*\n"
+                f"🎯 PREDICTION: `{final_pred}`\n"
+                f"🔢 TARGET NUMBER: `{final_num}`\n"
+                f"⚡ CONFIDENCE: `{final_conf}%`\n"
+                f"━━━━━━━━━━━━━━━━━━━━\n"
+                f"🧠 *ENGINE VOTES*\n"
+                f"{engine_votes}"
+                f"━━━━━━━━━━━━━━━━━━━━\n"
+                f"🔥 STREAK: `{current_win_streak - current_loss_streak:+d}`\n"
+                f"━━━━━━━━━━━━━━━━━━━━\n"
+                f"⏳ RESULT AWAITING...\n"
+                f"💎 3-ENGINE HYBRID VIP"
+            )
+            send_telegram(msg)
+            
+            last_processed_period = current_period
+            last_pred_signal = final_pred
+            last_pred_num = final_num
 
-# ==================== START ====================
-if __name__ == '__main__':
-    print("🔥 3-ENGINE HYBRID VIP BOT")
-    print("━━━━━━━━━━━━━━━━━━━━")
-    print("🗳️ VOTING SYSTEM:")
-    print("├─ DARK X VIP → 1 Vote")
-    print("├─ FUKD BY SAAD → 1 Vote")
-    print("└─ RGB VIP HACK → 1 Vote (12-Step Pattern)")
-    print("━━━━━━━━━━━━━━━━━━━━")
-    print("🤖 BOT IS RUNNING...")
-    asyncio.run(prediction_bot())
+    except Exception as e:
+        print("Loop error:", e)
+
+    time.sleep(2)
