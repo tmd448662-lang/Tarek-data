@@ -50,77 +50,53 @@ last_pred_signal = None
 last_pred_num = None
 
 # ============================================================
-#  DYNAMIC RGB VIP HACK ENGINE
+#  ENGINE 1: DARK X VIP (ঠিক করা)
 # ============================================================
-def rgb_vip_hack_engine():
-    """
-    RGB VIP HACK - Dynamic Pattern Based
-    ৫টি ফ্যাক্টর ভোট দিয়ে ফাইনাল সিদ্ধান্ত
-    """
-    if len(history_data) < 12:
-        # কম ডেটা থাকলে বেসিক প্রেডিকশন
-        now = datetime.now(timezone.utc)
-        start_of_day = datetime(now.year, now.month, now.day, tzinfo=timezone.utc)
-        diff = int((now - start_of_day).total_seconds())
-        idx = (diff // 60) + 1
-        pattern_idx = (idx + 5) % 12
-        pred = BASE_PATTERN[pattern_idx]
-        return pred["s"], pred["n"], 60
+def dark_x_engine():
+    """DARK X VIP - ঠিক করা"""
+    if len(history_data) < 5:
+        return "BIG", 7, 50
+    
+    sides = [d['side'] for d in history_data[:10]]
+    numbers = [d['number'] for d in history_data[:10]]
     
     # ===== ৫টি ফ্যাক্টর =====
     votes = {'BIG': 0, 'SMALL': 0}
-    numbers = [d['number'] for d in history_data[:10]]
-    sides = [d['side'] for d in history_data[:10]]
     
-    # ---- 1. BASE PATTERN (১২-স্টেপ) ----
-    now = datetime.now(timezone.utc)
-    start_of_day = datetime(now.year, now.month, now.day, tzinfo=timezone.utc)
-    diff = int((now - start_of_day).total_seconds())
-    idx = (diff // 60) + 1
-    pattern_idx = (idx + 5) % 12
-    base_pred = BASE_PATTERN[pattern_idx]
-    votes[base_pred["s"]] += 2  # Base Pattern-এর ওয়েট বেশি
-    base_num = base_pred["n"]
+    # ---- 1. LAST 3 PATTERN ----
+    if len(sides) >= 3:
+        last3 = sides[:3]
+        if last3[0] == last3[1] == last3[2]:
+            # ৩টি একই হলে রিভার্সাল
+            pred = "SMALL" if last3[0] == "BIG" else "BIG"
+            votes[pred] += 2
+        elif last3[0] == last3[1]:
+            # ২টি একই হলে উল্টোটা
+            pred = "SMALL" if last3[0] == "BIG" else "BIG"
+            votes[pred] += 1
     
-    # ---- 2. STREAK DETECTION ----
-    streak = 1
-    for i in range(1, len(sides[:8])):
-        if sides[i] == sides[i-1]:
-            streak += 1
-        else:
-            break
+    # ---- 2. TREND ANALYSIS ----
+    big_count = sides[:8].count("BIG")
+    small_count = sides[:8].count("SMALL")
     
-    if streak >= 5:
-        streak_pred = "SMALL" if sides[0] == "BIG" else "BIG"
-        votes[streak_pred] += 2
-    elif streak >= 3:
-        streak_pred = "SMALL" if sides[0] == "BIG" else "BIG"
-        votes[streak_pred] += 1
+    if big_count >= 6:
+        votes["SMALL"] += 2  # বেশি BIG আসলে SMALL
+    elif small_count >= 6:
+        votes["BIG"] += 2    # বেশি SMALL আসলে BIG
+    elif big_count >= small_count:
+        votes["BIG"] += 1
+    else:
+        votes["SMALL"] += 1
     
-    # ---- 3. ALTERNATING PATTERN ----
-    if len(sides) >= 5:
-        alt_pattern = True
-        for i in range(1, 5):
-            if sides[i] == sides[i-1]:
-                alt_pattern = False
-                break
-        if alt_pattern:
-            alt_pred = "SMALL" if sides[4] == "BIG" else "BIG"
-            votes[alt_pred] += 1
-    
-    # ---- 4. MIRROR PATTERN ----
-    if len(sides) >= 5 and sides[0] == sides[4] and sides[1] == sides[3]:
-        mirror_pred = "SMALL" if sides[0] == "BIG" else "BIG"
-        votes[mirror_pred] += 1
-    
-    # ---- 5. GAP ANALYSIS (Missing Numbers) ----
+    # ---- 3. GAP ANALYSIS ----
     missing_nums = [n for n in range(10) if n not in numbers[:10]]
     if missing_nums:
         gap_num = missing_nums[0]
         votes["BIG" if gap_num >= 5 else "SMALL"] += 1
     
-    # ---- 6. LEVEL 3 SAFETY NET ----
-    if current_loss_streak >= 3:
+    # ---- 4. LOSS RECOVERY ----
+    if current_loss_streak >= 2:
+        # লস স্ট্রিকে রিভার্সাল
         opposite = "SMALL" if max(votes, key=votes.get) == "BIG" else "BIG"
         votes[opposite] += 2
     
@@ -132,130 +108,100 @@ def rgb_vip_hack_engine():
         all_bigs = [5, 6, 7, 8, 9]
         recent_bigs = [n for n in numbers[:5] if n >= 5]
         available = [n for n in all_bigs if n not in recent_bigs]
-        if available:
-            final_num = random.choice(available)
-        else:
-            final_num = random.choice(all_bigs)
+        final_num = random.choice(available) if available else random.choice(all_bigs)
     else:
         all_smalls = [0, 1, 2, 3, 4]
         recent_smalls = [n for n in numbers[:5] if n < 5]
         available = [n for n in all_smalls if n not in recent_smalls]
-        if available:
-            final_num = random.choice(available)
-        else:
-            final_num = random.choice(all_smalls)
+        final_num = random.choice(available) if available else random.choice(all_smalls)
     
     # ---- কনফিডেন্স ----
     total_votes = sum(votes.values())
     if total_votes > 0:
-        confidence = 75 + (max(votes.values()) / total_votes * 20)
+        conf = 70 + (max(votes.values()) / total_votes * 20)
     else:
-        confidence = 70
+        conf = 65
     
-    return final_pred, final_num, int(confidence)
+    return final_pred, final_num, int(conf)
 
 # ============================================================
-#  OTHER ENGINES (DARK X, FUKD BY SAAD)
+#  ENGINE 2: FUKD BY SAAD (ঠিক করা)
 # ============================================================
-
-def dark_x_engine():
-    """DARK X VIP ENGINE"""
-    if len(history_data) < 5:
-        return "BIG", 7, 50
-    
-    sides = [d['side'] for d in history_data[:10]]
-    last1 = sides[0] if len(sides) > 0 else "BIG"
-    last2 = sides[1] if len(sides) > 1 else "BIG"
-    last3 = sides[2] if len(sides) > 2 else "BIG"
-    
-    big_count = sum(1 for s in sides[:8] if s == "BIG")
-    small_count = sum(1 for s in sides[:8] if s == "SMALL")
-    trend = "BIG" if big_count > small_count else "SMALL"
-    
-    if current_loss_streak >= 3:
-        pred = "SMALL" if last1 == "BIG" else "BIG"
-        return pred, 8 if pred == "BIG" else 1, 95
-    
-    if last1 == last2 and last2 == last3:
-        pred = "SMALL" if last1 == "BIG" else "BIG"
-        conf = 92
-    elif big_count >= 6:
-        pred = "BIG"
-        conf = 85
-    elif small_count >= 6:
-        pred = "SMALL"
-        conf = 85
-    else:
-        if last1 == "SMALL" and last2 == "SMALL":
-            pred = "BIG"
-            conf = 75
-        elif last1 == "BIG" and last2 == "BIG":
-            pred = "SMALL"
-            conf = 75
-        else:
-            pred = trend
-            conf = 70
-    
-    if current_loss_streak >= 2:
-        pred = "SMALL" if pred == "BIG" else "BIG"
-        conf = min(98, conf + 15)
-    
-    num = 7 if pred == "BIG" else 2
-    return pred, num, conf
-
 def fukd_saad_engine():
-    """FUKD BY SAAD - 6 Engine System"""
+    """FUKD BY SAAD - ঠিক করা"""
     if len(history_data) < 8:
-        return "BIG", 5, 60
+        return "BIG", 5, 50
     
     sides = [d['side'] for d in history_data[:10]]
     numbers = [d['number'] for d in history_data[:10]]
     
     votes = {'BIG': 0, 'SMALL': 0}
-    weights = [9, 7, 5, 3, 2, 1, 1, 1]
     
-    # CORE
+    # ---- 1. CORE (Weighted Score) ----
+    weights = [9, 7, 5, 3, 2, 1, 1, 1]
     score = 0
     for i in range(min(8, len(history_data))):
         if history_data[i]['number'] >= 5:
             score += weights[i]
         else:
             score -= weights[i]
-    core_pred = "BIG" if score >= 0 else "SMALL"
-    votes[core_pred] += 1
     
-    # SMART
-    if len(sides) >= 4 and sides[0] == sides[3] and sides[1] == sides[2]:
-        smart_pred = "SMALL" if sides[0] == "BIG" else "BIG"
-    elif sides[0] == sides[1] == sides[2]:
-        smart_pred = "SMALL" if sides[0] == "BIG" else "BIG"
+    if score >= 5:
+        votes["BIG"] += 2
+    elif score <= -5:
+        votes["SMALL"] += 2
+    elif score >= 0:
+        votes["BIG"] += 1
     else:
-        smart_pred = "SMALL" if sides[0] == "BIG" else "BIG"
-    votes[smart_pred] += 1
+        votes["SMALL"] += 1
     
-    # HYBRID
-    math_num = (numbers[0] + numbers[1]) % 10
-    hybrid_pred = "BIG" if math_num >= 5 else "SMALL"
-    votes[hybrid_pred] += 1
+    # ---- 2. SMART (Symmetry/Mirror) ----
+    if len(sides) >= 4:
+        if sides[0] == sides[3] and sides[1] == sides[2]:
+            # মিরর প্যাটার্ন
+            mirror_pred = "SMALL" if sides[0] == "BIG" else "BIG"
+            votes[mirror_pred] += 1
+        elif sides[0] == sides[1] == sides[2]:
+            votes["SMALL" if sides[0] == "BIG" else "BIG"] += 1
+        else:
+            # ট্রেন্ড অনুযায়ী
+            big_count = sides[:4].count("BIG")
+            small_count = sides[:4].count("SMALL")
+            votes["BIG" if big_count >= small_count else "SMALL"] += 1
     
-    # MASTER
+    # ---- 3. HYBRID (Math Offset) ----
+    if len(numbers) >= 2:
+        math_num = (numbers[0] + numbers[1]) % 10
+        votes["BIG" if math_num >= 5 else "SMALL"] += 1
+    
+    # ---- 4. MASTER (Weighted Score 2) ----
     score2 = 0
     for i in range(min(8, len(history_data))):
         if history_data[i]['number'] >= 5:
             score2 += (8 - i)
         else:
             score2 -= (8 - i)
-    master_pred = "BIG" if score2 >= 0 else "SMALL"
-    votes[master_pred] += 1
     
-    # ADVANCED
-    if current_loss_streak >= 3:
-        advanced_pred = "SMALL" if score2 >= 0 else "BIG"
+    if score2 >= 5:
+        votes["BIG"] += 2
+    elif score2 <= -5:
+        votes["SMALL"] += 2
+    elif score2 >= 0:
+        votes["BIG"] += 1
     else:
-        advanced_pred = "BIG" if score2 >= 0 else "SMALL"
-    votes[advanced_pred] += 1
+        votes["SMALL"] += 1
     
-    # ULTIMATE
+    # ---- 5. ADVANCED (Memory Based) ----
+    if current_loss_streak >= 2:
+        # লস স্ট্রিকে রিভার্সাল
+        opposite = "SMALL" if max(votes, key=votes.get) == "BIG" else "BIG"
+        votes[opposite] += 2
+    else:
+        # নরমাল ট্রেন্ড
+        big_count = sides[:8].count("BIG")
+        votes["BIG" if big_count >= 4 else "SMALL"] += 1
+    
+    # ---- 6. ULTIMATE (Streak Analysis) ----
     streak = 1
     for i in range(1, len(sides[:8])):
         if sides[i] == sides[i-1]:
@@ -263,22 +209,111 @@ def fukd_saad_engine():
         else:
             break
     
-    if streak >= 5:
-        ultimate_pred = "SMALL" if sides[0] == "BIG" else "BIG"
-    else:
-        big_count = sides[:8].count("BIG")
-        ultimate_pred = "BIG" if big_count >= 4 else "SMALL"
-    votes[ultimate_pred] += 1
+    if streak >= 4:
+        votes["SMALL" if sides[0] == "BIG" else "BIG"] += 2
+    elif streak >= 2:
+        votes["SMALL" if sides[0] == "BIG" else "BIG"] += 1
     
+    # ---- ফাইনাল ডিসিশন ----
     final_pred = max(votes, key=votes.get)
-    conf = 85 if final_pred == "BIG" else 80
+    
+    # ---- ডায়নামিক নাম্বার ----
+    if final_pred == "BIG":
+        all_bigs = [5, 6, 7, 8, 9]
+        recent_bigs = [n for n in numbers[:5] if n >= 5]
+        available = [n for n in all_bigs if n not in recent_bigs]
+        final_num = random.choice(available) if available else random.choice(all_bigs)
+    else:
+        all_smalls = [0, 1, 2, 3, 4]
+        recent_smalls = [n for n in numbers[:5] if n < 5]
+        available = [n for n in all_smalls if n not in recent_smalls]
+        final_num = random.choice(available) if available else random.choice(all_smalls)
+    
+    # ---- কনফিডেন্স ----
+    total_votes = sum(votes.values())
+    if total_votes > 0:
+        conf = 70 + (max(votes.values()) / total_votes * 20)
+    else:
+        conf = 65
+    
+    return final_pred, final_num, int(conf)
+
+# ============================================================
+#  ENGINE 3: RGB VIP HACK (ঠিক আছে)
+# ============================================================
+def rgb_vip_hack_engine():
+    """RGB VIP HACK - Dynamic Pattern"""
+    if len(history_data) < 12:
+        return "BIG", 7, 50
+    
+    sides = [d['side'] for d in history_data[:10]]
+    numbers = [d['number'] for d in history_data[:10]]
+    
+    votes = {'BIG': 0, 'SMALL': 0}
+    
+    # ---- 1. BASE PATTERN ----
+    now = datetime.now(timezone.utc)
+    start_of_day = datetime(now.year, now.month, now.day, tzinfo=timezone.utc)
+    diff = int((now - start_of_day).total_seconds())
+    idx = (diff // 60) + 1
+    pattern_idx = (idx + 5) % 12
+    base_pred = BASE_PATTERN[pattern_idx]
+    votes[base_pred["s"]] += 2
+    base_num = base_pred["n"]
+    
+    # ---- 2. STREAK ----
+    streak = 1
+    for i in range(1, len(sides[:8])):
+        if sides[i] == sides[i-1]:
+            streak += 1
+        else:
+            break
+    
+    if streak >= 4:
+        votes["SMALL" if sides[0] == "BIG" else "BIG"] += 2
+    elif streak >= 2:
+        votes["SMALL" if sides[0] == "BIG" else "BIG"] += 1
+    
+    # ---- 3. ALTERNATING ----
+    if len(sides) >= 5:
+        alt_pattern = True
+        for i in range(1, 5):
+            if sides[i] == sides[i-1]:
+                alt_pattern = False
+                break
+        if alt_pattern:
+            alt_pred = "SMALL" if sides[4] == "BIG" else "BIG"
+            votes[alt_pred] += 1
+    
+    # ---- 4. MIRROR ----
+    if len(sides) >= 5 and sides[0] == sides[4] and sides[1] == sides[3]:
+        mirror_pred = "SMALL" if sides[0] == "BIG" else "BIG"
+        votes[mirror_pred] += 1
+    
+    # ---- 5. GAP ----
+    missing_nums = [n for n in range(10) if n not in numbers[:10]]
+    if missing_nums:
+        gap_num = missing_nums[0]
+        votes["BIG" if gap_num >= 5 else "SMALL"] += 1
+    
+    # ---- ফাইনাল ----
+    final_pred = max(votes, key=votes.get)
     
     if final_pred == "BIG":
-        num = random.choice([5, 6, 7, 8, 9])
+        all_bigs = [5, 6, 7, 8, 9]
+        recent_bigs = [n for n in numbers[:5] if n >= 5]
+        available = [n for n in all_bigs if n not in recent_bigs]
+        final_num = random.choice(available) if available else random.choice(all_bigs)
     else:
-        num = random.choice([0, 1, 2, 3, 4])
+        all_smalls = [0, 1, 2, 3, 4]
+        recent_smalls = [n for n in numbers[:5] if n < 5]
+        available = [n for n in all_smalls if n not in recent_smalls]
+        final_num = random.choice(available) if available else random.choice(all_smalls)
     
-    return final_pred, num, conf
+    total_votes = sum(votes.values())
+    conf = 70 + (max(votes.values()) / total_votes * 20) if total_votes > 0 else 65
+    
+    return final_pred, final_num, int(conf)
 
 # ============================================================
 #  MASTER VOTING SYSTEM (3 Engines)
@@ -287,44 +322,37 @@ def fukd_saad_engine():
 def master_voting_system():
     """৩টি ইঞ্জিনের ভোট"""
     
-    # ৩টি ইঞ্জিন থেকে ৩টি ভোট
     dark_pred, dark_num, dark_conf = dark_x_engine()
     fukd_pred, fukd_num, fukd_conf = fukd_saad_engine()
-    rgb_pred, rgb_num, rgb_conf = rgb_vip_hack_engine()  # ← Dynamic RGB
+    rgb_pred, rgb_num, rgb_conf = rgb_vip_hack_engine()
     
     votes = {'BIG': 0, 'SMALL': 0}
     numbers = []
     confidences = []
     engines_detail = {}
     
-    # DARK X VIP
     votes[dark_pred] += 1
     numbers.append(dark_num)
     confidences.append(dark_conf)
     engines_detail['DARK X VIP'] = {'prediction': dark_pred, 'number': dark_num, 'confidence': dark_conf}
     
-    # FUKD BY SAAD
     votes[fukd_pred] += 1
     numbers.append(fukd_num)
     confidences.append(fukd_conf)
     engines_detail['FUKD BY SAAD (6-Engine)'] = {'prediction': fukd_pred, 'number': fukd_num, 'confidence': fukd_conf}
     
-    # RGB VIP HACK (Dynamic)
     votes[rgb_pred] += 1
     numbers.append(rgb_num)
     confidences.append(rgb_conf)
     engines_detail['RGB VIP HACK'] = {'prediction': rgb_pred, 'number': rgb_num, 'confidence': rgb_conf}
     
-    # ফাইনাল ডিসিশন
     final_pred = max(votes, key=votes.get)
     
-    # টাই ব্রেকার
     if votes['BIG'] == votes['SMALL']:
         big_conf = sum([d['confidence'] for d in engines_detail.values() if d['prediction'] == 'BIG'])
         small_conf = sum([d['confidence'] for d in engines_detail.values() if d['prediction'] == 'SMALL'])
         final_pred = "BIG" if big_conf >= small_conf else "SMALL"
     
-    # নাম্বার সিলেক্ট
     pred_numbers = [n for n in numbers if (n >= 5 and final_pred == "BIG") or (n < 5 and final_pred == "SMALL")]
     if pred_numbers:
         final_num = pred_numbers[0]
@@ -402,8 +430,8 @@ send_telegram(
     "🔥 *3-ENGINE HYBRID VIP* 🔥\n"
     "━━━━━━━━━━━━━━━━━━━━\n"
     "🗳️ *VOTING SYSTEM*\n"
-    "├─ DARK X VIP\n"
-    "├─ FUKD BY SAAD (6-Engine)\n"
+    "├─ DARK X VIP (Dynamic)\n"
+    "├─ FUKD BY SAAD (Dynamic)\n"
     "└─ RGB VIP HACK (Dynamic)\n"
     "━━━━━━━━━━━━━━━━━━━━\n"
     "⚡ MODE: 1 MIN WINGO\n"
@@ -418,7 +446,6 @@ while True:
         
         if current_period != last_processed_period:
             
-            # ১. আগের পিরিয়ডের RESULT চেক
             if last_processed_period is not None:
                 time.sleep(4)
                 
@@ -449,7 +476,6 @@ while True:
                     total_games = total_wins + total_losses
                     win_rate = (total_wins / total_games) * 100 if total_games > 0 else 0
                     
-                    # হিস্টোরি আপডেট
                     history_data.insert(0, {
                         'period': last_processed_period,
                         'number': actual_num,
@@ -474,7 +500,6 @@ while True:
                     )
                     send_telegram(res_msg)
 
-            # ২. নতুন পিরিয়ডের PREDICTION
             pred_result = master_voting_system()
             final_pred = pred_result['prediction']
             final_num = pred_result['number']
