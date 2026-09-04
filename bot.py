@@ -53,7 +53,7 @@ history_data = []        # list of dicts {issueNumber, number, side}
 last_predicted_period = None
 last_predicted_signal = None
 last_predicted_num = None
-prediction_sent_for_period = {}  # avoid double sending
+prediction_sent_for_period = {}
 
 # ==================== HOURLY STATS ====================
 hourly_stats = {
@@ -78,24 +78,21 @@ def dark_x_engine(data, level):
     Returns: {'prediction': 'BIG'/'SMALL', 'confidence': int, 'number': int}
     """
     if len(data) < 3:
-        # fallback when not enough history
         return {"prediction": "BIG", "confidence": 50, "number": 7}
 
-    # take last 10 results (or all if fewer)
     types = [d['side'] for d in data[:10]]
     last1 = types[0] if len(types) > 0 else "BIG"
     last2 = types[1] if len(types) > 1 else "BIG"
-    # last3 not used directly in the original logic, but we keep for completeness
 
-    # Default transition logic
+    # Default transition logic (as per HTML)
     if last1 == "SMALL":
         pred = "BIG"
         conf = 75
-    else:  # last1 == "BIG"
+    else:
         pred = "SMALL"
         conf = 60
 
-    # Sequence overrides (as per the HTML)
+    # Sequence overrides
     if last1 == "BIG" and last2 == "BIG":
         pred = "SMALL"
         conf = 90
@@ -109,7 +106,7 @@ def dark_x_engine(data, level):
         pred = "BIG"
         conf = 85
 
-    # Level 3 safety net: reverse prediction based on latest actual number
+    # Level 3 safety net: reverse based on latest actual number
     if level == 3 and len(data) > 0:
         latest_num = data[0]['number']
         pred = "SMALL" if latest_num >= 5 else "BIG"
@@ -124,13 +121,14 @@ def dark_x_engine(data, level):
     return {"prediction": pred, "confidence": conf, "number": num}
 
 # ============================================================
-#  ENGINE 2: RGB HACK (12-step pattern from second HTML)
+#  ENGINE 2: RGB HACK (corrected 12-step pattern)
 # ============================================================
 def rgb_hack_engine(period_str):
     """
-    Uses the fixed 12-step pattern based on the last three digits of the period.
-    period_str: string like "2026082301010"
-    Returns: {'prediction': 'BIG'/'SMALL', 'confidence': int, 'number': int}
+    Uses the fixed 12-step pattern from VIP NUMBER_decoded.html.
+    period_str: e.g., "20260904100011082"
+    We extract the last 5 digits as the period index (starting from 1).
+    For 1-minute mode, offset = 5, so pattern_index = (index + 5) % 12.
     """
     PATTERN = [
         {"s": "BIG", "n": 7}, {"s": "SMALL", "n": 2}, {"s": "SMALL", "n": 4},
@@ -138,10 +136,14 @@ def rgb_hack_engine(period_str):
         {"s": "BIG", "n": 8}, {"s": "SMALL", "n": 3}, {"s": "SMALL", "n": 1},
         {"s": "BIG", "n": 5}, {"s": "BIG", "n": 7}, {"s": "SMALL", "n": 4}
     ]
-    # get last three digits
-    last_three = int(str(period_str)[-3:])
-    index = last_three % 12
-    pred = PATTERN[index]
+    # Extract the last 5 characters (period index)
+    try:
+        idx = int(period_str[-5:])
+    except:
+        idx = 0
+    # 1-minute offset = 5
+    pattern_index = (idx + 5) % 12
+    pred = PATTERN[pattern_index]
     return {"prediction": pred["s"], "confidence": 78, "number": pred["n"]}
 
 # ============================================================
@@ -152,10 +154,8 @@ def master_matching_system(data, period_str, level):
     rgb = rgb_hack_engine(period_str)
 
     if dark['prediction'] == rgb['prediction']:
-        # Both engines agree → send prediction
         final_pred = dark['prediction']
         final_num = rgb['number'] if rgb['number'] is not None else dark['number']
-        # confidence: average of both
         final_conf = int((dark['confidence'] + rgb['confidence']) / 2)
         matched = True
         status = "✅ MATCH FOUND"
@@ -226,7 +226,6 @@ async def send_hourly_report():
         except:
             pass
 
-        # reset hourly stats
         hourly_stats = {
             'wins': 0, 'losses': 0, 'total': 0,
             'max_win_streak': 0, 'max_loss_streak': 0,
@@ -268,17 +267,14 @@ async def prediction_bot():
 
     while True:
         try:
-            # wait until the next minute starts (plus a few seconds for API update)
             current_sec = int(time.time()) % 60
             sleep_time = 60 - current_sec + 3
             await asyncio.sleep(sleep_time)
 
-            # fetch latest data
             raw_list = fetch_api_data()
             if not raw_list:
                 continue
 
-            # build history data with side
             history_data = []
             for h in raw_list[:20]:
                 num = int(h['number'])
@@ -295,7 +291,6 @@ async def prediction_bot():
 
             # ===== RESULT CHECK =====
             if last_predicted_period == latest_issue and last_predicted_signal is not None:
-                # determine win/loss/jackpot
                 is_win = (last_predicted_signal == actual_type)
                 is_jackpot = (actual_num == 0 or actual_num == 5)
 
@@ -305,12 +300,10 @@ async def prediction_bot():
                     status = "WIN"
                     status_icon = "🟢"
 
-                    # update streaks
                     if loss_streak >= 0:
                         loss_streak += 1
                     else:
                         loss_streak = 1
-                    # reset level on win
                     current_level = 1
 
                     if hourly_stats['streak_type'] == 'WIN':
@@ -328,12 +321,10 @@ async def prediction_bot():
                     status = "LOSS"
                     status_icon = "🔴"
 
-                    # update streaks (negative)
                     if loss_streak <= 0:
                         loss_streak -= 1
                     else:
                         loss_streak = -1
-                    # increment level (cycle 1->2->3->1)
                     current_level = (current_level % 3) + 1
 
                     if hourly_stats['streak_type'] == 'LOSS':
@@ -352,7 +343,6 @@ async def prediction_bot():
                 total_games = total_wins + total_losses
                 win_rate = (total_wins / total_games * 100) if total_games > 0 else 0.0
                 multiplier = f"{current_level}x"
-
                 streak_emoji = "🔥" if loss_streak > 0 else "📉" if loss_streak < 0 else "⏸️"
 
                 result_msg = (
@@ -379,7 +369,6 @@ async def prediction_bot():
 
                 await send_hourly_report()
 
-                # clear stored prediction for this period
                 last_predicted_period = None
                 last_predicted_signal = None
                 last_predicted_num = None
@@ -388,7 +377,6 @@ async def prediction_bot():
             next_period = str(int(latest_issue) + 1)
 
             if not prediction_sent_for_period.get(next_period, False):
-                # run both engines
                 pred = master_matching_system(history_data, next_period, current_level)
                 multiplier = f"{current_level}x"
                 streak_emoji = "🔥" if loss_streak > 0 else "📉" if loss_streak < 0 else "⏸️"
@@ -426,7 +414,6 @@ async def prediction_bot():
                     except:
                         pass
                 else:
-                    # No match: send waiting message
                     wait_msg = (
                         f"⏳ *WAITING - NO MATCH*\n"
                         f"━━━━━━━━━━━━━━━━━━━━\n"
@@ -445,7 +432,6 @@ async def prediction_bot():
                     except:
                         pass
 
-                # clean up old entries from dict
                 if len(prediction_sent_for_period) > 5:
                     oldest = min(prediction_sent_for_period.keys())
                     del prediction_sent_for_period[oldest]
