@@ -15,7 +15,7 @@ class DummyServer(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.end_headers()
-        self.wfile.write(b"4-ENGINE HYBRID VIP BOT is running!")
+        self.wfile.write(b"3-ENGINE HYBRID VIP BOT is running!")
 
 def run_dummy_server():
     port = int(os.environ.get("PORT", 8080))
@@ -70,10 +70,10 @@ hourly_stats = {
 last_hour_report_time = time.time()
 
 # ============================================================
-#  ENGINE 1: DARK X VIP (1 VOTE)
+#  ENGINE 1: DARK X VIP
 # ============================================================
 def dark_x_engine(data):
-    """DARK X VIP ENGINE - From DARK X BHAI VIP V1.3"""
+    """DARK X VIP ENGINE - DARK X BHAI VIP V1.3"""
     if len(data) < 5:
         return {"prediction": "BIG", "confidence": 50, "number": 7}
     
@@ -119,8 +119,7 @@ def dark_x_engine(data):
     return {"prediction": pred, "confidence": conf, "number": num}
 
 # ============================================================
-#  ENGINE 2: FUKD BY SAAD (FINAL RESULT - 1 VOTE)
-#  NOTE: এই ফাইলের ভেতরে ৬টি ইঞ্জিন ভোট দিয়ে ফাইনাল রেজাল্ট তৈরি করে
+#  ENGINE 2: FUKD BY SAAD (6 Engine System)
 # ============================================================
 def fukd_saad_engine(data):
     """FUKD BY SAAD - 6 Engine System (Final Result = 1 Vote)"""
@@ -130,7 +129,6 @@ def fukd_saad_engine(data):
     sides = [d['side'] for d in data[:10]]
     numbers = [d['number'] for d in data[:10]]
     
-    # ৬টি ইঞ্জিনের ভোট
     votes = {'BIG': 0, 'SMALL': 0}
     weights = [9, 7, 5, 3, 2, 1, 1, 1]
     
@@ -146,6 +144,8 @@ def fukd_saad_engine(data):
     
     # 2. SMART ENGINE
     if len(sides) >= 4 and sides[0] == sides[3] and sides[1] == sides[2]:
+        smart_pred = "SMALL" if sides[0] == "BIG" else "BIG"
+    elif sides[0] == sides[1] == sides[2]:
         smart_pred = "SMALL" if sides[0] == "BIG" else "BIG"
     else:
         smart_pred = "SMALL" if sides[0] == "BIG" else "BIG"
@@ -188,7 +188,6 @@ def fukd_saad_engine(data):
         ultimate_pred = "BIG" if big_count >= 4 else "SMALL"
     votes[ultimate_pred] += 1
     
-    # ফাইনাল রেজাল্ট (৬টি ভোটের মধ্যে থেকে)
     final_pred = max(votes, key=votes.get)
     conf = 85 if final_pred == "BIG" else 80
     
@@ -200,13 +199,14 @@ def fukd_saad_engine(data):
     return {"prediction": final_pred, "confidence": conf, "number": num}
 
 # ============================================================
-#  ENGINE 3: RGB VIP HACK (1 VOTE)
+#  ENGINE 3: RGB VIP HACK (মূল ফাইল থেকে ঠিক যেমন)
 # ============================================================
 def rgb_vip_hack_engine(data):
-    """RGB VIP HACK - From VIP NUMBER_decoded.html"""
+    """RGB VIP HACK - VIP NUMBER_decoded.html থেকে ঠিক যেমন"""
     if len(data) < 12:
         return {"prediction": "BIG", "confidence": 60, "number": 6}
     
+    # 12-STEP PATTERN (মূল ফাইল থেকে ঠিক যেমন)
     PATTERN = [
         {"s": "BIG", "n": 7}, {"s": "SMALL", "n": 2}, {"s": "SMALL", "n": 4},
         {"s": "BIG", "n": 9}, {"s": "BIG", "n": 6}, {"s": "SMALL", "n": 0},
@@ -214,6 +214,7 @@ def rgb_vip_hack_engine(data):
         {"s": "BIG", "n": 5}, {"s": "BIG", "n": 7}, {"s": "SMALL", "n": 4}
     ]
     
+    # পিরিয়ড থেকে ইনডেক্স
     period = data[0]['issueNumber']
     if len(str(period)) >= 3:
         idx = int(str(period)[-3:]) % 12
@@ -221,88 +222,23 @@ def rgb_vip_hack_engine(data):
         idx = int(str(period)) % 12
     
     pred = PATTERN[idx]
+    
+    # টাইম বেইজড কনফিডেন্স (মূল ফাইল থেকে)
     current_sec = int(time.time()) % 60
     conf = 78 if current_sec > 30 else 85
     
     return {"prediction": pred["s"], "confidence": conf, "number": pred["n"]}
 
 # ============================================================
-#  ENGINE 4: ULTIMATE PRO AI (1 VOTE)
-# ============================================================
-def ultimate_pro_ai(data):
-    """ULTIMATE PRO AI - Adaptive Weight System"""
-    if len(data) < 8:
-        return {"prediction": "BIG", "confidence": 60, "number": 5}
-    
-    sides = [d['side'] for d in data[:10]]
-    numbers = [d['number'] for d in data[:10]]
-    
-    votes = {'BIG': 0, 'SMALL': 0}
-    weights = {'mirror': 3, 'ema': 2, 'gap': 1, 'cluster': 2, 'trend': 2}
-    
-    # Mirror Detection
-    if len(sides) >= 5 and sides[0] == sides[4] and sides[1] == sides[3]:
-        mirror_pred = "SMALL" if sides[0] == "BIG" else "BIG"
-        votes[mirror_pred] += weights['mirror']
-    
-    # Streak Analysis
-    streak = 1
-    for i in range(1, len(sides[:8])):
-        if sides[i] == sides[i-1]:
-            streak += 1
-        else:
-            break
-    
-    if streak >= 5:
-        votes["SMALL" if sides[0] == "BIG" else "BIG"] += 4
-    elif streak >= 3:
-        votes[sides[0]] += 2
-    
-    # Alternating Pattern
-    if len(sides) >= 5:
-        alt_pattern = True
-        for i in range(1, 5):
-            if sides[i] == sides[i-1]:
-                alt_pattern = False
-                break
-        if alt_pattern:
-            pred = "SMALL" if sides[4] == "BIG" else "BIG"
-            votes[pred] += 3
-    
-    # Gap Analysis
-    missing_nums = [n for n in range(10) if n not in numbers[:10]]
-    if missing_nums:
-        gap_num = missing_nums[0]
-        votes["BIG" if gap_num >= 5 else "SMALL"] += 1.5
-    
-    # Loss Recovery
-    if loss_streak <= -3:
-        opposite = "SMALL" if max(votes, key=votes.get) == "BIG" else "BIG"
-        votes[opposite] += 3
-    
-    final_pred = max(votes, key=votes.get)
-    conf = 75 + (max(votes.values()) / sum(votes.values()) * 20)
-    
-    if final_pred == "BIG":
-        num = random.choice([5, 6, 7, 8, 9])
-    else:
-        num = random.choice([0, 1, 2, 3, 4])
-    
-    return {"prediction": final_pred, "confidence": int(conf), "number": num}
-
-# ============================================================
-#  MASTER VOTING SYSTEM (4 ইঞ্জিনের ভোট)
+#  MASTER VOTING SYSTEM (3 Engines)
 # ============================================================
 def master_voting_system(data):
-    """৪টি ইঞ্জিনের ভোট - প্রতিটি ইঞ্জিন ১টি করে ভোট দেয়"""
+    """৩টি ইঞ্জিনের ভোট - DARK X + FUKD BY SAAD + RGB VIP HACK"""
     
-    # ৪টি ইঞ্জিন থেকে ৪টি ভোট
-    engine1 = dark_x_engine(data)        # DARK X VIP → 1 Vote
-    engine2 = fukd_saad_engine(data)     # FUKD BY SAAD → 1 Vote (এর ভেতরে ৬টি ইঞ্জিনের ফাইনাল)
-    engine3 = rgb_vip_hack_engine(data)  # RGB VIP HACK → 1 Vote
-    engine4 = ultimate_pro_ai(data)      # ULTIMATE PRO AI → 1 Vote
+    engine1 = dark_x_engine(data)        # DARK X VIP
+    engine2 = fukd_saad_engine(data)     # FUKD BY SAAD
+    engine3 = rgb_vip_hack_engine(data)  # RGB VIP HACK (মূল মতো)
     
-    # ৪টি ভোট কাউন্ট
     votes = {'BIG': 0, 'SMALL': 0}
     numbers = []
     confidences = []
@@ -314,7 +250,7 @@ def master_voting_system(data):
     confidences.append(engine1['confidence'])
     engines_detail['DARK X VIP'] = engine1
     
-    # FUKD BY SAAD (৬টি ইঞ্জিনের ফাইনাল রেজাল্ট)
+    # FUKD BY SAAD
     votes[engine2['prediction']] += 1
     numbers.append(engine2['number'])
     confidences.append(engine2['confidence'])
@@ -326,13 +262,7 @@ def master_voting_system(data):
     confidences.append(engine3['confidence'])
     engines_detail['RGB VIP HACK'] = engine3
     
-    # ULTIMATE PRO AI
-    votes[engine4['prediction']] += 1
-    numbers.append(engine4['number'])
-    confidences.append(engine4['confidence'])
-    engines_detail['ULTIMATE PRO AI'] = engine4
-    
-    # ফাইনাল ডিসিশন (৪টি ভোটের মধ্যে থেকে)
+    # ফাইনাল ডিসিশন
     final_pred = max(votes, key=votes.get)
     
     # টাই ব্রেকার
@@ -393,12 +323,11 @@ async def send_hourly_report():
             f"📉 *WORST LOSS STREAK:* `{hourly_stats['max_loss_streak']}x`\n"
             f"🔥 *CURRENT STREAK:* `{hourly_stats['current_streak']}x {hourly_stats['streak_type']}`\n"
             f"━━━━━━━━━━━━━━━━━━━━\n"
-            f"🗳️ *4-ENGINE VOTING SYSTEM*\n"
-            f"├─ DARK X VIP (1 Vote)\n"
-            f"├─ FUKD BY SAAD (1 Vote - 6 Engine Final)\n"
-            f"├─ RGB VIP HACK (1 Vote)\n"
-            f"└─ ULTIMATE PRO AI (1 Vote)\n"
-            f"💎 4-ENGINE HYBRID VIP V8"
+            f"🗳️ *3-ENGINE VOTING SYSTEM*\n"
+            f"├─ DARK X VIP\n"
+            f"├─ FUKD BY SAAD (6-Engine)\n"
+            f"└─ RGB VIP HACK (12-Step Pattern)\n"
+            f"💎 3-ENGINE HYBRID VIP V11"
         )
         
         try:
@@ -419,26 +348,24 @@ async def prediction_bot():
     global total_rounds, history_data, last_predicted_period
     global last_predicted_signal, last_predicted_num, prediction_sent_for_period
 
-    print("🔥 4-ENGINE HYBRID VIP BOT STARTED...")
+    print("🔥 3-ENGINE HYBRID VIP BOT STARTED...")
     print("━━━━━━━━━━━━━━━━━━━━")
     print("🗳️ VOTING SYSTEM:")
     print("├─ DARK X VIP → 1 Vote")
-    print("├─ FUKD BY SAAD → 1 Vote (6 Engine Final)")
-    print("├─ RGB VIP HACK → 1 Vote")
-    print("└─ ULTIMATE PRO AI → 1 Vote")
+    print("├─ FUKD BY SAAD → 1 Vote")
+    print("└─ RGB VIP HACK → 1 Vote (12-Step Pattern)")
     print("━━━━━━━━━━━━━━━━━━━━")
 
     try:
         await bot.send_message(
             chat_id=CHAT_ID,
             text=(
-                "🔥 *4-ENGINE HYBRID VIP BOT* 🔥\n"
+                "🔥 *3-ENGINE HYBRID VIP BOT* 🔥\n"
                 "━━━━━━━━━━━━━━━━━━━━\n"
                 "🗳️ *VOTING SYSTEM*\n"
-                "├─ DARK X VIP → 1 Vote\n"
-                "├─ FUKD BY SAAD → 1 Vote (6 Engine Final)\n"
-                "├─ RGB VIP HACK → 1 Vote\n"
-                "└─ ULTIMATE PRO AI → 1 Vote\n"
+                "├─ DARK X VIP\n"
+                "├─ FUKD BY SAAD (6-Engine)\n"
+                "└─ RGB VIP HACK (12-Step Pattern)\n"
                 "━━━━━━━━━━━━━━━━━━━━\n"
                 "⚡ MODE: 1 MIN WINGO\n"
                 "📊 HOURLY REPORT: ACTIVE\n"
@@ -534,8 +461,8 @@ async def prediction_bot():
                     f"🔥 STREAK: `{loss_streak:+d}`\n"
                     f"👑 LEVEL: `{current_level}` ({multiplier})\n"
                     f"━━━━━━━━━━━━━━━━━━━━\n"
-                    f"🗳️ VOTING: 4 ENGINES\n"
-                    f"💎 4-ENGINE HYBRID VIP V8"
+                    f"🗳️ VOTING: 3 ENGINES\n"
+                    f"💎 3-ENGINE HYBRID VIP V11"
                 )
                 
                 try:
@@ -564,7 +491,7 @@ async def prediction_bot():
                     engine_votes += f"├─ {name}: `{data['prediction']}` ({data['number']}) `{data['confidence']}%`\n"
                 
                 prediction_msg = (
-                    f"🔥 *4-ENGINE HYBRID VIP* 🔥\n"
+                    f"🔥 *3-ENGINE HYBRID VIP* 🔥\n"
                     f"━━━━━━━━━━━━━━━━━━━━\n"
                     f"🆔 PERIOD: `#{next_period[-5:]}`\n"
                     f"━━━━━━━━━━━━━━━━━━━━\n"
@@ -583,7 +510,7 @@ async def prediction_bot():
                     f"🔥 STREAK: `{loss_streak:+d}`\n"
                     f"━━━━━━━━━━━━━━━━━━━━\n"
                     f"⏳ RESULT AWAITING...\n"
-                    f"💎 4-ENGINE HYBRID VIP V8"
+                    f"💎 3-ENGINE HYBRID VIP V11"
                 )
                 
                 last_predicted_period = next_period
@@ -606,13 +533,12 @@ async def prediction_bot():
 
 # ==================== START ====================
 if __name__ == '__main__':
-    print("🔥 4-ENGINE HYBRID VIP BOT")
+    print("🔥 3-ENGINE HYBRID VIP BOT")
     print("━━━━━━━━━━━━━━━━━━━━")
     print("🗳️ VOTING SYSTEM:")
     print("├─ DARK X VIP → 1 Vote")
-    print("├─ FUKD BY SAAD → 1 Vote (6 Engine Final)")
-    print("├─ RGB VIP HACK → 1 Vote")
-    print("└─ ULTIMATE PRO AI → 1 Vote")
+    print("├─ FUKD BY SAAD → 1 Vote")
+    print("└─ RGB VIP HACK → 1 Vote (12-Step Pattern)")
     print("━━━━━━━━━━━━━━━━━━━━")
     print("🤖 BOT IS RUNNING...")
     asyncio.run(prediction_bot())
