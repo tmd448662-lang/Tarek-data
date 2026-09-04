@@ -13,7 +13,7 @@ class DummyServer(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.end_headers()
-        self.wfile.write(b"MATCHING HYBRID VIP BOT is running!")
+        self.wfile.write(b"3-SYSTEM HYBRID VIP BOT is running!")
 
 def run_dummy_server():
     port = int(os.environ.get("PORT", 8080))
@@ -44,7 +44,6 @@ bot = Bot(token=BOT_TOKEN)
 # ==================== STATS ====================
 total_wins = 0
 total_losses = 0
-jackpots = 0
 loss_streak = 0
 current_level = 1
 total_rounds = 0
@@ -111,7 +110,7 @@ def dark_x_engine(data):
         conf = min(98, conf + 15)
     
     global current_level
-    if current_level == 3:
+    if current_level >= 3:
         pred = "SMALL" if pred == "BIG" else "BIG"
         conf = min(99, conf + 10)
     
@@ -120,7 +119,7 @@ def dark_x_engine(data):
     return {"prediction": pred, "confidence": conf, "number": num}
 
 # ============================================================
-#  ENGINE 2: FUKD BY SAAD (6 Engines)
+#  ENGINE 2: FUKD BY SAAD (6 Engines Voting)
 # ============================================================
 
 def fukd_saad_prediction(data):
@@ -131,10 +130,8 @@ def fukd_saad_prediction(data):
     sides = [d['side'] for d in data[:10]]
     numbers = [d['number'] for d in data[:10]]
     
-    # 6টি ইঞ্জিনের ভোট
     votes = {'BIG': 0, 'SMALL': 0}
     confidences = []
-    numbers_list = []
     
     # 1. CORE ENGINE
     weights = [9, 7, 5, 3, 2, 1, 1, 1]
@@ -188,7 +185,7 @@ def fukd_saad_prediction(data):
     votes[advanced_pred] += 1
     confidences.append(advanced_conf)
     
-    # 6. ULTIMATE ENGINE (সিম্পল)
+    # 6. ULTIMATE ENGINE
     streak = 1
     for i in range(1, len(sides[:8])):
         if sides[i] == sides[i-1]:
@@ -206,11 +203,9 @@ def fukd_saad_prediction(data):
     votes[ultimate_pred] += 1
     confidences.append(ultimate_conf)
     
-    # ফাইনাল
     final_pred = max(votes, key=votes.get)
     final_conf = int(sum(confidences) / len(confidences))
     
-    # সংখ্যা
     if final_pred == "BIG":
         final_num = random.randint(5, 9)
     else:
@@ -219,47 +214,174 @@ def fukd_saad_prediction(data):
     return {"prediction": final_pred, "confidence": final_conf, "number": final_num}
 
 # ============================================================
-#  MASTER MATCHING SYSTEM
+#  ENGINE 3: ULTIMATE PRO AI (বিশেষ)
 # ============================================================
 
-def master_matching_system(data):
-    """DARK X + FUKD BY SAAD - Matching System"""
+def ultimate_pro_engine(data):
+    """ULTIMATE PRO AI - Advanced Prediction Engine"""
+    if len(data) < 10:
+        return {"prediction": "BIG", "confidence": 70, "number": 7}
     
-    # ===== DARK X প্রেডিকশন =====
-    dark_x = dark_x_engine(data)
+    sides = [d['side'] for d in data[:15]]
+    numbers = [d['number'] for d in data[:15]]
     
-    # ===== FUKD BY SAAD প্রেডিকশন =====
-    fukd = fukd_saad_prediction(data)
+    # ===== ১. স্ট্রিক ডিটেকশন =====
+    streak = 1
+    for i in range(1, len(sides)):
+        if sides[i] == sides[i-1]:
+            streak += 1
+        else:
+            break
     
-    # ===== ম্যাচিং চেক =====
-    if dark_x['prediction'] == fukd['prediction']:
-        # ম্যাচ হয়েছে! প্রেডিকশন পাঠাও
-        matched = True
-        final_pred = dark_x['prediction']
-        final_num = dark_x['number']  # DARK X-এর সংখ্যা ব্যবহার
-        final_conf = int((dark_x['confidence'] + fukd['confidence']) / 2)
-        
-        status_text = "✅ MATCH FOUND"
-        status_icon = "🟢"
+    last1 = sides[0] if len(sides) > 0 else "BIG"
+    last2 = sides[1] if len(sides) > 1 else "BIG"
+    last3 = sides[2] if len(sides) > 2 else "BIG"
+    last4 = sides[3] if len(sides) > 3 else "BIG"
+    last5 = sides[4] if len(sides) > 4 else "BIG"
+    
+    # ===== ২. ট্রেন্ড অ্যানালাইসিস =====
+    big_count = sum(1 for s in sides[:10] if s == "BIG")
+    small_count = sum(1 for s in sides[:10] if s == "SMALL")
+    big_ratio = big_count / (big_count + small_count) if (big_count + small_count) > 0 else 0.5
+    
+    # ===== ৩. ফ্রিকোয়েন্সি অ্যানালাইসিস =====
+    freq = [0] * 10
+    for n in numbers[:15]:
+        freq[n] += 1
+    
+    # সবচেয়ে কম আসা নম্বর (কোল্ড)
+    min_freq = min(freq)
+    cold_numbers = [i for i, f in enumerate(freq) if f == min_freq]
+    
+    # ===== ৪. ড্রাগন সিরিজ (৫+ একই) =====
+    if streak >= 5:
+        pred = "SMALL" if last1 == "BIG" else "BIG"
+        conf = 95
+        reason = "DRAGON_REVERSAL"
+    
+    # ===== ৫. ৪-স্টেপ প্যাটার্ন (ABAB) =====
+    elif len(sides) >= 4 and last1 == last3 and last2 == last4 and last1 != last2:
+        pred = last1
+        conf = 90
+        reason = "PATTERN_ABAB"
+    
+    # ===== ৬. ৩-স্টেপ প্যাটার্ন (ABA) =====
+    elif len(sides) >= 3 and last1 == last3 and last1 != last2:
+        pred = last1
+        conf = 85
+        reason = "PATTERN_ABA"
+    
+    # ===== ৭. অল্টারনেটিং প্যাটার্ন =====
+    elif len(sides) >= 5 and all(sides[i] != sides[i+1] for i in range(4)):
+        pred = sides[0]
+        conf = 80
+        reason = "ALTERNATING"
+    
+    # ===== ৮. ট্রেন্ড ফলো =====
+    elif big_ratio >= 0.60:
+        pred = "BIG"
+        conf = 75 + (big_ratio - 0.5) * 30
+        reason = "TREND_BIG"
+    elif big_ratio <= 0.40:
+        pred = "SMALL"
+        conf = 75 + (0.5 - big_ratio) * 30
+        reason = "TREND_SMALL"
+    
+    # ===== ৯. ম্যাথমেটিক্যাল অফসেট =====
     else:
-        # ম্যাচ হয়নি! WAIT
-        matched = False
-        final_pred = "WAIT"
-        final_num = "--"
-        final_conf = 0
-        
-        status_text = "⏳ WAITING - NO MATCH"
-        status_icon = "🟡"
+        last_five_sum = sum(numbers[:5])
+        if last_five_sum % 2 == 0:
+            pred = "BIG"
+            conf = 70
+            reason = "MATH_EVEN"
+        else:
+            pred = "SMALL"
+            conf = 70
+            reason = "MATH_ODD"
+    
+    # ===== ১০. লস স্ট্রেক প্রোটেকশন =====
+    global loss_streak
+    if loss_streak <= -2:
+        pred = "SMALL" if pred == "BIG" else "BIG"
+        conf = min(98, conf + 15)
+        reason = "LOSS_REVERSAL"
+    
+    # ===== ১১. লেভেল 3 বুস্ট =====
+    global current_level
+    if current_level >= 3:
+        pred = "SMALL" if pred == "BIG" else "BIG"
+        conf = min(99, conf + 10)
+        reason = "LEVEL3_BOOST"
+    
+    # ===== ১২. নম্বর জেনারেট (কোল্ড নম্বর) =====
+    if pred == "BIG":
+        cold_big = [n for n in cold_numbers if n >= 5]
+        num = cold_big[0] if cold_big else random.randint(5, 9)
+    else:
+        cold_small = [n for n in cold_numbers if n < 5]
+        num = cold_small[0] if cold_small else random.randint(0, 4)
+    
+    return {"prediction": pred, "confidence": int(conf), "number": num}
+
+# ============================================================
+#  3-SYSTEM VOTING (DARK X + FUKD + ULTIMATE PRO)
+# ============================================================
+
+def master_voting_system(data):
+    """৩টি সিস্টেমের ভোট নিয়ে ফাইনাল সিদ্ধান্ত"""
+    
+    # ===== ৩টি সিস্টেম চালু =====
+    dark_x = dark_x_engine(data)
+    fukd = fukd_saad_prediction(data)
+    ultimate = ultimate_pro_engine(data)
+    
+    # ===== ভোট কাউন্ট =====
+    votes = {'BIG': 0, 'SMALL': 0}
+    numbers = []
+    confidences = []
+    
+    # DARK X
+    votes[dark_x['prediction']] += 1
+    numbers.append(dark_x['number'])
+    confidences.append(dark_x['confidence'])
+    
+    # FUKD BY SAAD
+    votes[fukd['prediction']] += 1
+    numbers.append(fukd['number'])
+    confidences.append(fukd['confidence'])
+    
+    # ULTIMATE PRO
+    votes[ultimate['prediction']] += 1
+    numbers.append(ultimate['number'])
+    confidences.append(ultimate['confidence'])
+    
+    # ===== ফাইনাল ডিসিশন =====
+    final_pred = max(votes, key=votes.get)
+    
+    # সংখ্যা: যে প্রেডিকশন জিতেছে তার সংখ্যা
+    if final_pred == "BIG":
+        big_nums = [n for n in numbers if n >= 5]
+        final_num = big_nums[0] if big_nums else 7
+    else:
+        small_nums = [n for n in numbers if n < 5]
+        final_num = small_nums[0] if small_nums else 2
+    
+    # কনফিডেন্স
+    final_conf = int(sum(confidences) / len(confidences))
+    
+    # সেরা ইঞ্জিন
+    best = max([('DARK X', dark_x), ('FUKD BY SAAD', fukd), ('ULTIMATE PRO', ultimate)], 
+               key=lambda x: x[1]['confidence'])
     
     return {
-        'matched': matched,
         'prediction': final_pred,
         'number': final_num,
         'confidence': final_conf,
+        'best_engine': best[0],
+        'votes': votes,
         'dark_x': dark_x,
         'fukd': fukd,
-        'status': status_text,
-        'status_icon': status_icon
+        'ultimate': ultimate
     }
 
 # ============================================================
@@ -303,8 +425,8 @@ async def send_hourly_report():
             f"📉 *WORST LOSS STREAK:* `{hourly_stats['max_loss_streak']}x`\n"
             f"🔥 *CURRENT STREAK:* `{hourly_stats['current_streak']}x {hourly_stats['streak_type']}`\n"
             f"━━━━━━━━━━━━━━━━━━━━\n"
-            f"🧠 *MATCHING SYSTEM: DARK X + FUKD BY SAAD*\n"
-            f"💎 MATCHING HYBRID VIP"
+            f"🧠 *3-SYSTEM VOTING: DARK X + FUKD + ULTIMATE PRO*\n"
+            f"💎 3-SYSTEM HYBRID VIP V8"
         )
         
         try:
@@ -324,24 +446,26 @@ async def send_hourly_report():
 # ============================================================
 
 async def prediction_bot():
-    global total_wins, total_losses, jackpots, loss_streak, current_level
+    global total_wins, total_losses, loss_streak, current_level
     global total_rounds, history_data, last_predicted_period
     global last_predicted_signal, last_predicted_num, prediction_sent_for_period
 
-    print("🔥 MATCHING HYBRID VIP BOT STARTED...")
-    print("🧠 DARK X + FUKD BY SAAD (6 Engines)")
-    print("✅ MATCH = SEND | ❌ NO MATCH = WAIT")
+    print("🔥 3-SYSTEM HYBRID VIP BOT STARTED...")
+    print("🧠 DARK X + FUKD BY SAAD (6 Engines) + ULTIMATE PRO")
+    print("🗳️ MAJORITY VOTING SYSTEM")
+    print("❌ NO MATCH OFF - ALWAYS PREDICT")
 
     try:
         await bot.send_message(
             chat_id=CHAT_ID,
-            text="🔥 MATCHING HYBRID VIP 🔥\n"
+            text="🔥 3-SYSTEM HYBRID VIP 🔥\n"
                  "━━━━━━━━━━━━━━━━━━━━\n"
-                 "🧠 DARK X + FUKD BY SAAD (6 Engines)\n"
-                 "✅ MATCH FOUND = SEND PREDICTION\n"
-                 "❌ NO MATCH = WAIT FOR NEXT ROUND\n"
+                 "🧠 DARK X + FUKD BY SAAD + ULTIMATE PRO\n"
+                 "🗳️ MAJORITY VOTING = FINAL\n"
+                 "⭐ JACKPOT → WIN\n"
+                 "📊 LOSS = STREAK -1, LEVEL UP\n"
+                 "❌ NO MATCH OFF - ALWAYS PREDICT\n"
                  "⚡ MODE: 1 MIN WINGO\n"
-                 "📊 HOURLY REPORT: ACTIVE\n"
                  "━━━━━━━━━━━━━━━━━━━━\n"
                  "⏳ WAITING FOR FIRST SIGNAL...",
         )
@@ -375,20 +499,15 @@ async def prediction_bot():
             if last_predicted_period == latest_issue and last_predicted_signal is not None:
                 
                 is_win = last_predicted_signal == actual_type
-                is_jackpot = (actual_num == last_predicted_num)
+                is_jackpot = (actual_num == 0 or actual_num == 5)
                 
-                if is_jackpot:
-                    jackpots += 1
-                    status = "JACKPOT"
-                    status_icon = "⭐"
-                    loss_streak = 0
-                    current_level = 1
-                elif is_win:
+                if is_win or is_jackpot:
                     total_wins += 1
                     hourly_stats['wins'] += 1
                     status = "WIN"
                     status_icon = "🟢"
-                    loss_streak = 0 if loss_streak < 0 else loss_streak + 1
+                    
+                    loss_streak = loss_streak + 1 if loss_streak >= 0 else 1
                     current_level = 1
                     
                     if hourly_stats['streak_type'] == 'WIN':
@@ -399,13 +518,17 @@ async def prediction_bot():
                     
                     if hourly_stats['current_streak'] > hourly_stats['max_win_streak']:
                         hourly_stats['max_win_streak'] = hourly_stats['current_streak']
+                    
+                    jackpot_text = " ⭐ JACKPOT!" if is_jackpot else ""
+                    
                 else:
                     total_losses += 1
                     hourly_stats['losses'] += 1
                     status = "LOSS"
                     status_icon = "🔴"
-                    loss_streak = -1 if loss_streak > 0 else loss_streak - 1
-                    current_level = 3 if current_level >= 3 else current_level + 1
+                    
+                    loss_streak = loss_streak - 1 if loss_streak <= 0 else -1
+                    current_level = current_level + 1
                     
                     if hourly_stats['streak_type'] == 'LOSS':
                         hourly_stats['current_streak'] += 1
@@ -415,15 +538,17 @@ async def prediction_bot():
                     
                     if hourly_stats['current_streak'] > hourly_stats['max_loss_streak']:
                         hourly_stats['max_loss_streak'] = hourly_stats['current_streak']
+                    
+                    jackpot_text = ""
                 
                 total_rounds += 1
                 hourly_stats['total'] += 1
                 
                 total_games = total_wins + total_losses
                 win_rate = (total_wins / total_games * 100) if total_games > 0 else 0.0
-                multiplier = "1x" if current_level == 1 else "3x" if current_level == 2 else "9x"
+                multiplier = f"{current_level}x"
                 
-                jackpot_text = " ⭐ JACKPOT!" if is_jackpot else ""
+                streak_emoji = "🔥" if loss_streak > 0 else "📉" if loss_streak < 0 else "⏸️"
                 
                 result_msg = (
                     f"🎯 RESULT UPDATE {status_icon}\n"
@@ -434,11 +559,11 @@ async def prediction_bot():
                     f"📌 RESULT: {status_icon} {status}{jackpot_text}\n"
                     f"━━━━━━━━━━━━━━━━━━━━\n"
                     f"📊 WIN RATE: {win_rate:.1f}% ({total_wins}W/{total_losses}L)\n"
-                    f"🔥 STREAK: {loss_streak:+d}\n"
+                    f"{streak_emoji} STREAK: {loss_streak:+d}\n"
                     f"👑 LEVEL: {current_level} ({multiplier})\n"
                     f"━━━━━━━━━━━━━━━━━━━━\n"
-                    f"🧠 MATCHING SYSTEM: DARK X + FUKD BY SAAD\n"
-                    f"💎 MATCHING HYBRID VIP"
+                    f"🗳️ 3-SYSTEM VOTING\n"
+                    f"💎 3-SYSTEM HYBRID VIP V8"
                 )
                 
                 try:
@@ -458,63 +583,44 @@ async def prediction_bot():
             
             if not prediction_sent_for_period.get(next_period, False):
                 
-                pred = master_matching_system(history_data)
+                pred = master_voting_system(history_data)
+                multiplier = f"{current_level}x"
+                streak_emoji = "🔥" if loss_streak > 0 else "📉" if loss_streak < 0 else "⏸️"
                 
-                if pred['matched']:
-                    # ম্যাচ হয়েছে → প্রেডিকশন পাঠাও
-                    multiplier = "1x" if current_level == 1 else "3x" if current_level == 2 else "9x"
-                    
-                    prediction_msg = (
-                        f"🔥 MATCHING HYBRID VIP 🔥\n"
-                        f"━━━━━━━━━━━━━━━━━━━━\n"
-                        f"🆔 PERIOD: #{next_period[-5:]}\n"
-                        f"━━━━━━━━━━━━━━━━━━━━\n"
-                        f"✅ *MATCH FOUND!*\n"
-                        f"━━━━━━━━━━━━━━━━━━━━\n"
-                        f"📈 *FINAL PREDICTION*\n"
-                        f"🎯 PREDICTION: {pred['prediction']}\n"
-                        f"🔢 TARGET NUMBER: {pred['number']}\n"
-                        f"⚡ CONFIDENCE: {pred['confidence']}%\n"
-                        f"━━━━━━━━━━━━━━━━━━━━\n"
-                        f"🧠 *DARK X:* {pred['dark_x']['prediction']} ({pred['dark_x']['number']}) {pred['dark_x']['confidence']}%\n"
-                        f"🧠 *FUKD BY SAAD:* {pred['fukd']['prediction']} ({pred['fukd']['number']}) {pred['fukd']['confidence']}%\n"
-                        f"━━━━━━━━━━━━━━━━━━━━\n"
-                        f"👑 LEVEL: {current_level} ({multiplier})\n"
-                        f"🔥 STREAK: {loss_streak:+d}\n"
-                        f"━━━━━━━━━━━━━━━━━━━━\n"
-                        f"⏳ RESULT AWAITING...\n"
-                        f"💎 MATCHING HYBRID VIP"
-                    )
-                    
-                    last_predicted_period = next_period
-                    last_predicted_signal = pred['prediction']
-                    last_predicted_num = pred['number']
-                    prediction_sent_for_period[next_period] = True
-                    
-                    try:
-                        await bot.send_message(chat_id=CHAT_ID, text=prediction_msg)
-                    except:
-                        pass
-                else:
-                    # ম্যাচ হয়নি → WAIT মেসেজ
-                    wait_msg = (
-                        f"⏳ *WAITING - NO MATCH*\n"
-                        f"━━━━━━━━━━━━━━━━━━━━\n"
-                        f"🆔 PERIOD: #{next_period[-5:]}\n"
-                        f"━━━━━━━━━━━━━━━━━━━━\n"
-                        f"🧠 *DARK X:* {pred['dark_x']['prediction']} ({pred['dark_x']['number']}) {pred['dark_x']['confidence']}%\n"
-                        f"🧠 *FUKD BY SAAD:* {pred['fukd']['prediction']} ({pred['fukd']['number']}) {pred['fukd']['confidence']}%\n"
-                        f"━━━━━━━━━━━━━━━━━━━━\n"
-                        f"❌ *NO MATCH FOUND*\n"
-                        f"⏳ *WAITING FOR NEXT ROUND...*\n"
-                        f"━━━━━━━━━━━━━━━━━━━━\n"
-                        f"💎 MATCHING HYBRID VIP"
-                    )
-                    
-                    try:
-                        await bot.send_message(chat_id=CHAT_ID, text=wait_msg)
-                    except:
-                        pass
+                prediction_msg = (
+                    f"🔥 3-SYSTEM HYBRID VIP 🔥\n"
+                    f"━━━━━━━━━━━━━━━━━━━━\n"
+                    f"🆔 PERIOD: #{next_period[-5:]}\n"
+                    f"━━━━━━━━━━━━━━━━━━━━\n"
+                    f"🗳️ *VOTING RESULT*\n"
+                    f"📊 BIG: {pred['votes']['BIG']} | SMALL: {pred['votes']['SMALL']}\n"
+                    f"━━━━━━━━━━━━━━━━━━━━\n"
+                    f"📈 *FINAL PREDICTION*\n"
+                    f"🎯 PREDICTION: {pred['prediction']}\n"
+                    f"🔢 TARGET NUMBER: {pred['number']}\n"
+                    f"⚡ CONFIDENCE: {pred['confidence']}%\n"
+                    f"🧠 BEST ENGINE: {pred['best_engine']}\n"
+                    f"━━━━━━━━━━━━━━━━━━━━\n"
+                    f"🧠 *DARK X:* {pred['dark_x']['prediction']} ({pred['dark_x']['number']}) {pred['dark_x']['confidence']}%\n"
+                    f"🧠 *FUKD BY SAAD:* {pred['fukd']['prediction']} ({pred['fukd']['number']}) {pred['fukd']['confidence']}%\n"
+                    f"🧠 *ULTIMATE PRO:* {pred['ultimate']['prediction']} ({pred['ultimate']['number']}) {pred['ultimate']['confidence']}%\n"
+                    f"━━━━━━━━━━━━━━━━━━━━\n"
+                    f"👑 LEVEL: {current_level} ({multiplier})\n"
+                    f"{streak_emoji} STREAK: {loss_streak:+d}\n"
+                    f"━━━━━━━━━━━━━━━━━━━━\n"
+                    f"⏳ RESULT AWAITING...\n"
+                    f"💎 3-SYSTEM HYBRID VIP V8"
+                )
+                
+                last_predicted_period = next_period
+                last_predicted_signal = pred['prediction']
+                last_predicted_num = pred['number']
+                prediction_sent_for_period[next_period] = True
+                
+                try:
+                    await bot.send_message(chat_id=CHAT_ID, text=prediction_msg)
+                except:
+                    pass
 
             if len(prediction_sent_for_period) > 5:
                 oldest = min(prediction_sent_for_period.keys())
@@ -525,9 +631,10 @@ async def prediction_bot():
             await asyncio.sleep(5)
 
 if __name__ == '__main__':
-    print("🔥 MATCHING HYBRID VIP BOT")
+    print("🔥 3-SYSTEM HYBRID VIP BOT")
     print("━━━━━━━━━━━━━━━━━━━━")
-    print("🧠 DARK X + FUKD BY SAAD (6 Engines)")
-    print("✅ MATCH = SEND | ❌ NO MATCH = WAIT")
+    print("🧠 DARK X + FUKD BY SAAD + ULTIMATE PRO")
+    print("🗳️ MAJORITY VOTING SYSTEM")
+    print("❌ NO MATCH OFF - ALWAYS PREDICT")
     print("━━━━━━━━━━━━━━━━━━━━")
     asyncio.run(prediction_bot())
