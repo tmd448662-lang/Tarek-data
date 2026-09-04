@@ -13,7 +13,7 @@ class DummyServer(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.end_headers()
-        self.wfile.write(b"RGB MATCHING HYBRID VIP BOT is running!")
+        self.wfile.write(b"RGB MATCHING 1MIN VIP BOT is running!")
 
 def run_dummy_server():
     port = int(os.environ.get("PORT", 8080))
@@ -38,7 +38,7 @@ threading.Thread(target=keep_alive, daemon=True).start()
 BOT_TOKEN = "8386058038:AAEwayH-C4AUr7L_tx6Ecz__xpIXnrekJw0"
 CHAT_ID = "5012028880"
 
-# ✅ 1 MIN WINGO API (ঠিক করা হলো)
+# ✅ 1 MIN WINGO API
 RAW_API = "https://draw.ar-lottery01.com/WinGo/WinGo_1M/GetHistoryIssuePage.json"
 
 bot = Bot(token=BOT_TOKEN)
@@ -69,11 +69,11 @@ hourly_stats = {
 last_hour_report_time = time.time()
 
 # ============================================================
-#  ENGINE 1: DARK X
+#  ENGINE 1: DARK X (1 MIN WINGO)
 # ============================================================
 
 def dark_x_engine(data):
-    """DARK X - Single Prediction Engine"""
+    """DARK X - 1 Min Wingo Prediction"""
     if len(data) < 5:
         return {"prediction": "BIG", "confidence": 50, "number": 7}
     
@@ -121,11 +121,11 @@ def dark_x_engine(data):
     return {"prediction": pred, "confidence": conf, "number": num}
 
 # ============================================================
-#  ENGINE 2: RGB HACK (12-STEP PATTERN) - 1 MIN
+#  ENGINE 2: RGB HACK (12-STEP PATTERN - 1 MIN)
 # ============================================================
 
 def rgb_hack_engine(data):
-    """RGB HACK - 12 Step Fixed Pattern (1 Min)"""
+    """RGB HACK - 12 Step Fixed Pattern (1 Min Wingo)"""
     if len(data) < 1:
         return {"prediction": "BIG", "confidence": 60, "number": 7}
     
@@ -151,7 +151,7 @@ def rgb_hack_engine(data):
 # ============================================================
 
 def master_matching_system(data):
-    """DARK X + RGB HACK - Matching System"""
+    """DARK X + RGB HACK - Matching System (1 Min)"""
     
     dark_x = dark_x_engine(data)
     rgb = rgb_hack_engine(data)
@@ -183,7 +183,7 @@ def master_matching_system(data):
     }
 
 # ============================================================
-#  API FETCH
+#  API FETCH (1 MIN)
 # ============================================================
 
 def fetch_api_data():
@@ -224,7 +224,7 @@ async def send_hourly_report():
             f"🔥 *CURRENT STREAK:* `{hourly_stats['current_streak']}x {hourly_stats['streak_type']}`\n"
             f"━━━━━━━━━━━━━━━━━━━━\n"
             f"🧠 *MATCHING SYSTEM: DARK X + RGB HACK (1 Min)*\n"
-            f"💎 RGB MATCHING HYBRID VIP"
+            f"💎 RGB MATCHING 1MIN VIP"
         )
         
         try:
@@ -248,7 +248,7 @@ async def prediction_bot():
     global total_rounds, history_data, last_predicted_period
     global last_predicted_signal, last_predicted_num, prediction_sent_for_period
 
-    print("🔥 RGB MATCHING HYBRID VIP BOT STARTED...")
+    print("🔥 RGB MATCHING 1MIN VIP BOT STARTED...")
     print("🧠 DARK X + RGB HACK (12-Step Pattern)")
     print("📡 MODE: 1 MIN WINGO")
     print("✅ MATCH = SEND | ❌ NO MATCH = WAIT")
@@ -256,9 +256,9 @@ async def prediction_bot():
     try:
         await bot.send_message(
             chat_id=CHAT_ID,
-            text="🔥 RGB MATCHING HYBRID VIP 🔥\n"
+            text="🔥 RGB MATCHING 1MIN VIP 🔥\n"
                  "━━━━━━━━━━━━━━━━━━━━\n"
-                 "🧠 DARK X + RGB HACK (12-Step Pattern)\n"
+                 "🧠 DARK X + RGB HACK (12-Step)\n"
                  "✅ MATCH FOUND = SEND PREDICTION\n"
                  "❌ NO MATCH = WAIT FOR NEXT ROUND\n"
                  "⭐ JACKPOT → WIN COUNT\n"
@@ -360,8 +360,8 @@ async def prediction_bot():
                     f"{streak_emoji} STREAK: {loss_streak:+d}\n"
                     f"👑 LEVEL: {current_level} ({multiplier})\n"
                     f"━━━━━━━━━━━━━━━━━━━━\n"
-                    f"🧠 MATCHING SYSTEM: DARK X + RGB HACK (1 Min)\n"
-                    f"💎 RGB MATCHING HYBRID VIP"
+                    f"🧠 MATCHING: DARK X + RGB HACK (1 Min)\n"
+                    f"💎 RGB MATCHING 1MIN VIP"
                 )
                 
                 try:
@@ -387,7 +387,7 @@ async def prediction_bot():
                 
                 if pred['matched']:
                     prediction_msg = (
-                        f"🔥 RGB MATCHING HYBRID VIP 🔥\n"
+                        f"🔥 RGB MATCHING 1MIN VIP 🔥\n"
                         f"━━━━━━━━━━━━━━━━━━━━\n"
                         f"🆔 PERIOD: #{next_period[-5:]}\n"
                         f"━━━━━━━━━━━━━━━━━━━━\n"
@@ -405,7 +405,7 @@ async def prediction_bot():
                         f"{streak_emoji} STREAK: {loss_streak:+d}\n"
                         f"━━━━━━━━━━━━━━━━━━━━\n"
                         f"⏳ RESULT AWAITING...\n"
-                        f"💎 RGB MATCHING HYBRID VIP"
+                        f"💎 RGB MATCHING 1MIN VIP"
                     )
                     
                     last_predicted_period = next_period
@@ -429,7 +429,7 @@ async def prediction_bot():
                         f"❌ *NO MATCH FOUND*\n"
                         f"⏳ *WAITING FOR NEXT ROUND...*\n"
                         f"━━━━━━━━━━━━━━━━━━━━\n"
-                        f"💎 RGB MATCHING HYBRID VIP"
+                        f"💎 RGB MATCHING 1MIN VIP"
                     )
                     
                     try:
@@ -446,7 +446,7 @@ async def prediction_bot():
             await asyncio.sleep(5)
 
 if __name__ == '__main__':
-    print("🔥 RGB MATCHING HYBRID VIP BOT")
+    print("🔥 RGB MATCHING 1MIN VIP BOT")
     print("━━━━━━━━━━━━━━━━━━━━")
     print("🧠 DARK X + RGB HACK (12-Step Pattern)")
     print("📡 MODE: 1 MIN WINGO")
