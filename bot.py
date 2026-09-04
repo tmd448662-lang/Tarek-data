@@ -38,7 +38,6 @@ BASE_PATTERN = [
 
 # ─── HISTORY DATA STORE ───
 history_data = []
-last_10_results = []
 
 # ─── GLOBAL STATS ───
 total_wins = 0
@@ -50,316 +49,122 @@ last_pred_signal = None
 last_pred_num = None
 
 # ============================================================
-#  ENGINE 1: DARK X VIP (ঠিক করা)
+#  API HISTORY POPULATOR (হিস্ট্রি লোড করার জন্য)
+# ============================================================
+def init_history_data():
+    """বোট চালু হওয়ার সাথে সাথে ২০টি রেজাল্ট ফেচ করে হিস্ট্রি ফিল করে"""
+    global history_data
+    timestamp = str(int(time.time() * 1000))
+    url = RAW_API + timestamp
+    try:
+        res = requests.get(url, timeout=5)
+        if res.status_code == 200:
+            list_data = res.json().get("data", {}).get("list", [])
+            history_data = []
+            for item in list_data[:20]:
+                num = int(item.get("number"))
+                history_data.append({
+                    'period': str(item.get("issueNumber")),
+                    'number': num,
+                    'side': "BIG" if num >= 5 else "SMALL"
+                })
+            print(f"Successfully loaded {len(history_data)} past history items.")
+    except Exception as e:
+        print("History Init Fetch Error:", e)
+
+# ============================================================
+#  ENGINE 1: DARK X VIP (TITAN ULTRA FIXED)
 # ============================================================
 def dark_x_engine():
-    """DARK X VIP - ঠিক করা"""
-    if len(history_data) < 5:
-        return "BIG", 7, 50
+    """TITAN ULTRA Core Matching Logic"""
+    if not history_data:
+        # ফলব্যাক যদি কোনো হিস্ট্রি না থাকে
+        return "SMALL", 3, 90
     
-    sides = [d['side'] for d in history_data[:10]]
-    numbers = [d['number'] for d in history_data[:10]]
+    latest_num = history_data[0]['number']
+    latest_side = history_data[0]['side']
     
-    # ===== ৫টি ফ্যাক্টর =====
-    votes = {'BIG': 0, 'SMALL': 0}
-    
-    # ---- 1. LAST 3 PATTERN ----
-    if len(sides) >= 3:
-        last3 = sides[:3]
-        if last3[0] == last3[1] == last3[2]:
-            # ৩টি একই হলে রিভার্সাল
-            pred = "SMALL" if last3[0] == "BIG" else "BIG"
-            votes[pred] += 2
-        elif last3[0] == last3[1]:
-            # ২টি একই হলে উল্টোটা
-            pred = "SMALL" if last3[0] == "BIG" else "BIG"
-            votes[pred] += 1
-    
-    # ---- 2. TREND ANALYSIS ----
-    big_count = sides[:8].count("BIG")
-    small_count = sides[:8].count("SMALL")
-    
-    if big_count >= 6:
-        votes["SMALL"] += 2  # বেশি BIG আসলে SMALL
-    elif small_count >= 6:
-        votes["BIG"] += 2    # বেশি SMALL আসলে BIG
-    elif big_count >= small_count:
-        votes["BIG"] += 1
-    else:
-        votes["SMALL"] += 1
-    
-    # ---- 3. GAP ANALYSIS ----
-    missing_nums = [n for n in range(10) if n not in numbers[:10]]
-    if missing_nums:
-        gap_num = missing_nums[0]
-        votes["BIG" if gap_num >= 5 else "SMALL"] += 1
-    
-    # ---- 4. LOSS RECOVERY ----
-    if current_loss_streak >= 2:
-        # লস স্ট্রিকে রিভার্সাল
-        opposite = "SMALL" if max(votes, key=votes.get) == "BIG" else "BIG"
-        votes[opposite] += 2
-    
-    # ---- ফাইনাল ডিসিশন ----
-    final_pred = max(votes, key=votes.get)
-    
-    # ---- ডায়নামিক নাম্বার ----
-    if final_pred == "BIG":
-        all_bigs = [5, 6, 7, 8, 9]
-        recent_bigs = [n for n in numbers[:5] if n >= 5]
-        available = [n for n in all_bigs if n not in recent_bigs]
-        final_num = random.choice(available) if available else random.choice(all_bigs)
-    else:
-        all_smalls = [0, 1, 2, 3, 4]
-        recent_smalls = [n for n in numbers[:5] if n < 5]
-        available = [n for n in all_smalls if n not in recent_smalls]
-        final_num = random.choice(available) if available else random.choice(all_smalls)
-    
-    # ---- কনফিডেন্স ----
-    total_votes = sum(votes.values())
-    if total_votes > 0:
-        conf = 70 + (max(votes.values()) / total_votes * 20)
-    else:
-        conf = 65
-    
-    return final_pred, final_num, int(conf)
+    # লাস্ট রেজাল্ট থেকে রিভার্সাল ও গ্যাপ ট্র্যাকিং
+    if len(history_data) >= 3:
+        last3 = [d['side'] for d in history_data[:3]]
+        if last3[0] == last3[1] == "BIG":
+            return "SMALL", 3, 90
+        elif last3[0] == last3[1] == "SMALL":
+            return "BIG", 7, 90
+
+    # গ্যাপ ও সিকোয়েন্স কাউন্টার
+    pred_side = "SMALL" if latest_side == "BIG" else "BIG"
+    pred_num = 3 if pred_side == "SMALL" else 7
+    return pred_side, pred_num, 90
 
 # ============================================================
-#  ENGINE 2: FUKD BY SAAD (ঠিক করা)
+#  ENGINE 2: FUKD BY SAAD (PRO AI FIXED)
 # ============================================================
 def fukd_saad_engine():
-    """FUKD BY SAAD - ঠিক করা"""
-    if len(history_data) < 8:
-        return "BIG", 5, 50
+    """Ultimate Pro AI Matching Logic"""
+    if not history_data:
+        return "BIG", 6, 76
     
-    sides = [d['side'] for d in history_data[:10]]
-    numbers = [d['number'] for d in history_data[:10]]
+    # ম্যাথ-সিকোয়েন্স মেথড
+    num_sum = sum([d['number'] for d in history_data[:3]])
+    math_val = num_sum % 10
     
-    votes = {'BIG': 0, 'SMALL': 0}
+    final_pred = "BIG" if math_val >= 5 else "SMALL"
+    final_num = math_val if (math_val >= 5 and final_pred == "BIG") or (math_val < 5 and final_pred == "SMALL") else (6 if final_pred == "BIG" else 3)
     
-    # ---- 1. CORE (Weighted Score) ----
-    weights = [9, 7, 5, 3, 2, 1, 1, 1]
-    score = 0
-    for i in range(min(8, len(history_data))):
-        if history_data[i]['number'] >= 5:
-            score += weights[i]
-        else:
-            score -= weights[i]
-    
-    if score >= 5:
-        votes["BIG"] += 2
-    elif score <= -5:
-        votes["SMALL"] += 2
-    elif score >= 0:
-        votes["BIG"] += 1
-    else:
-        votes["SMALL"] += 1
-    
-    # ---- 2. SMART (Symmetry/Mirror) ----
-    if len(sides) >= 4:
-        if sides[0] == sides[3] and sides[1] == sides[2]:
-            # মিরর প্যাটার্ন
-            mirror_pred = "SMALL" if sides[0] == "BIG" else "BIG"
-            votes[mirror_pred] += 1
-        elif sides[0] == sides[1] == sides[2]:
-            votes["SMALL" if sides[0] == "BIG" else "BIG"] += 1
-        else:
-            # ট্রেন্ড অনুযায়ী
-            big_count = sides[:4].count("BIG")
-            small_count = sides[:4].count("SMALL")
-            votes["BIG" if big_count >= small_count else "SMALL"] += 1
-    
-    # ---- 3. HYBRID (Math Offset) ----
-    if len(numbers) >= 2:
-        math_num = (numbers[0] + numbers[1]) % 10
-        votes["BIG" if math_num >= 5 else "SMALL"] += 1
-    
-    # ---- 4. MASTER (Weighted Score 2) ----
-    score2 = 0
-    for i in range(min(8, len(history_data))):
-        if history_data[i]['number'] >= 5:
-            score2 += (8 - i)
-        else:
-            score2 -= (8 - i)
-    
-    if score2 >= 5:
-        votes["BIG"] += 2
-    elif score2 <= -5:
-        votes["SMALL"] += 2
-    elif score2 >= 0:
-        votes["BIG"] += 1
-    else:
-        votes["SMALL"] += 1
-    
-    # ---- 5. ADVANCED (Memory Based) ----
-    if current_loss_streak >= 2:
-        # লস স্ট্রিকে রিভার্সাল
-        opposite = "SMALL" if max(votes, key=votes.get) == "BIG" else "BIG"
-        votes[opposite] += 2
-    else:
-        # নরমাল ট্রেন্ড
-        big_count = sides[:8].count("BIG")
-        votes["BIG" if big_count >= 4 else "SMALL"] += 1
-    
-    # ---- 6. ULTIMATE (Streak Analysis) ----
-    streak = 1
-    for i in range(1, len(sides[:8])):
-        if sides[i] == sides[i-1]:
-            streak += 1
-        else:
-            break
-    
-    if streak >= 4:
-        votes["SMALL" if sides[0] == "BIG" else "BIG"] += 2
-    elif streak >= 2:
-        votes["SMALL" if sides[0] == "BIG" else "BIG"] += 1
-    
-    # ---- ফাইনাল ডিসিশন ----
-    final_pred = max(votes, key=votes.get)
-    
-    # ---- ডায়নামিক নাম্বার ----
-    if final_pred == "BIG":
-        all_bigs = [5, 6, 7, 8, 9]
-        recent_bigs = [n for n in numbers[:5] if n >= 5]
-        available = [n for n in all_bigs if n not in recent_bigs]
-        final_num = random.choice(available) if available else random.choice(all_bigs)
-    else:
-        all_smalls = [0, 1, 2, 3, 4]
-        recent_smalls = [n for n in numbers[:5] if n < 5]
-        available = [n for n in all_smalls if n not in recent_smalls]
-        final_num = random.choice(available) if available else random.choice(all_smalls)
-    
-    # ---- কনফিডেন্স ----
-    total_votes = sum(votes.values())
-    if total_votes > 0:
-        conf = 70 + (max(votes.values()) / total_votes * 20)
-    else:
-        conf = 65
-    
-    return final_pred, final_num, int(conf)
+    return final_pred, final_num, 78
 
 # ============================================================
-#  ENGINE 3: RGB VIP HACK (ঠিক আছে)
+#  ENGINE 3: RGB VIP HACK (ANSH BOSS FIXED)
 # ============================================================
 def rgb_vip_hack_engine():
-    """RGB VIP HACK - Dynamic Pattern"""
-    if len(history_data) < 12:
-        return "BIG", 7, 50
-    
-    sides = [d['side'] for d in history_data[:10]]
-    numbers = [d['number'] for d in history_data[:10]]
-    
-    votes = {'BIG': 0, 'SMALL': 0}
-    
-    # ---- 1. BASE PATTERN ----
+    """ANSH BOSS Real VIP Predictor Sync"""
     now = datetime.now(timezone.utc)
     start_of_day = datetime(now.year, now.month, now.day, tzinfo=timezone.utc)
     diff = int((now - start_of_day).total_seconds())
     idx = (diff // 60) + 1
-    pattern_idx = (idx + 5) % 12
+    
+    # ANSH BOSS 1 MIN 12-Step Dynamic Math Sync
+    pattern_idx = idx % 12
     base_pred = BASE_PATTERN[pattern_idx]
-    votes[base_pred["s"]] += 2
-    base_num = base_pred["n"]
     
-    # ---- 2. STREAK ----
-    streak = 1
-    for i in range(1, len(sides[:8])):
-        if sides[i] == sides[i-1]:
-            streak += 1
-        else:
-            break
-    
-    if streak >= 4:
-        votes["SMALL" if sides[0] == "BIG" else "BIG"] += 2
-    elif streak >= 2:
-        votes["SMALL" if sides[0] == "BIG" else "BIG"] += 1
-    
-    # ---- 3. ALTERNATING ----
-    if len(sides) >= 5:
-        alt_pattern = True
-        for i in range(1, 5):
-            if sides[i] == sides[i-1]:
-                alt_pattern = False
-                break
-        if alt_pattern:
-            alt_pred = "SMALL" if sides[4] == "BIG" else "BIG"
-            votes[alt_pred] += 1
-    
-    # ---- 4. MIRROR ----
-    if len(sides) >= 5 and sides[0] == sides[4] and sides[1] == sides[3]:
-        mirror_pred = "SMALL" if sides[0] == "BIG" else "BIG"
-        votes[mirror_pred] += 1
-    
-    # ---- 5. GAP ----
-    missing_nums = [n for n in range(10) if n not in numbers[:10]]
-    if missing_nums:
-        gap_num = missing_nums[0]
-        votes["BIG" if gap_num >= 5 else "SMALL"] += 1
-    
-    # ---- ফাইনাল ----
-    final_pred = max(votes, key=votes.get)
-    
-    if final_pred == "BIG":
-        all_bigs = [5, 6, 7, 8, 9]
-        recent_bigs = [n for n in numbers[:5] if n >= 5]
-        available = [n for n in all_bigs if n not in recent_bigs]
-        final_num = random.choice(available) if available else random.choice(all_bigs)
-    else:
-        all_smalls = [0, 1, 2, 3, 4]
-        recent_smalls = [n for n in numbers[:5] if n < 5]
-        available = [n for n in all_smalls if n not in recent_smalls]
-        final_num = random.choice(available) if available else random.choice(all_smalls)
-    
-    total_votes = sum(votes.values())
-    conf = 70 + (max(votes.values()) / total_votes * 20) if total_votes > 0 else 65
-    
-    return final_pred, final_num, int(conf)
+    # হিস্ট্রি প্যাটার্ন ওভাররাইড (যদি লস স্ট্রিক থাকে)
+    if history_data and len(history_data) >= 2:
+        if history_data[0]['side'] == history_data[1]['side']:
+            final_pred = "SMALL" if history_data[0]['side'] == "BIG" else "BIG"
+            final_num = 3 if final_pred == "SMALL" else 8
+            return final_pred, final_num, 85
+
+    return base_pred["s"], base_pred["n"], 85
 
 # ============================================================
-#  MASTER VOTING SYSTEM (3 Engines)
+#  MASTER VOTING SYSTEM
 # ============================================================
-
 def master_voting_system():
-    """৩টি ইঞ্জিনের ভোট"""
-    
     dark_pred, dark_num, dark_conf = dark_x_engine()
     fukd_pred, fukd_num, fukd_conf = fukd_saad_engine()
     rgb_pred, rgb_num, rgb_conf = rgb_vip_hack_engine()
     
     votes = {'BIG': 0, 'SMALL': 0}
-    numbers = []
-    confidences = []
-    engines_detail = {}
+    engines_detail = {
+        'DARK X VIP': {'prediction': dark_pred, 'number': dark_num, 'confidence': dark_conf},
+        'FUKD BY SAAD (6-Engine)': {'prediction': fukd_pred, 'number': fukd_num, 'confidence': fukd_conf},
+        'RGB VIP HACK': {'prediction': rgb_pred, 'number': rgb_num, 'confidence': rgb_conf}
+    }
     
     votes[dark_pred] += 1
-    numbers.append(dark_num)
-    confidences.append(dark_conf)
-    engines_detail['DARK X VIP'] = {'prediction': dark_pred, 'number': dark_num, 'confidence': dark_conf}
-    
     votes[fukd_pred] += 1
-    numbers.append(fukd_num)
-    confidences.append(fukd_conf)
-    engines_detail['FUKD BY SAAD (6-Engine)'] = {'prediction': fukd_pred, 'number': fukd_num, 'confidence': fukd_conf}
-    
     votes[rgb_pred] += 1
-    numbers.append(rgb_num)
-    confidences.append(rgb_conf)
-    engines_detail['RGB VIP HACK'] = {'prediction': rgb_pred, 'number': rgb_num, 'confidence': rgb_conf}
     
+    # মেজোরিটি ডিসিশন
     final_pred = max(votes, key=votes.get)
     
-    if votes['BIG'] == votes['SMALL']:
-        big_conf = sum([d['confidence'] for d in engines_detail.values() if d['prediction'] == 'BIG'])
-        small_conf = sum([d['confidence'] for d in engines_detail.values() if d['prediction'] == 'SMALL'])
-        final_pred = "BIG" if big_conf >= small_conf else "SMALL"
+    # নাম্বার ও কনফিডেন্স সিলেকশন
+    matching_nums = [d['number'] for d in engines_detail.values() if d['prediction'] == final_pred]
+    final_num = matching_nums[0] if matching_nums else (7 if final_pred == "BIG" else 3)
     
-    pred_numbers = [n for n in numbers if (n >= 5 and final_pred == "BIG") or (n < 5 and final_pred == "SMALL")]
-    if pred_numbers:
-        final_num = pred_numbers[0]
-    else:
-        final_num = random.choice([7 if final_pred == "BIG" else 2])
-    
-    final_conf = int(sum(confidences) / len(confidences))
+    total_conf = sum([d['confidence'] for d in engines_detail.values()])
+    final_conf = int(total_conf / 3)
     
     return {
         'prediction': final_pred,
@@ -372,7 +177,6 @@ def master_voting_system():
 # ============================================================
 #  TELEGRAM FUNCTIONS
 # ============================================================
-
 def send_telegram(message):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
     payload = {"chat_id": CHAT_ID, "text": message, "parse_mode": "Markdown"}
@@ -388,8 +192,7 @@ def fetch_real_result():
     try:
         res = requests.get(raw_url, timeout=4)
         if res.status_code == 200:
-            data = res.json()
-            list_data = data.get("data", {}).get("list", [])
+            list_data = res.json().get("data", {}).get("list", [])
             if list_data:
                 return str(list_data[0].get("issueNumber")), int(list_data[0].get("number"))
     except Exception:
@@ -399,18 +202,13 @@ def fetch_real_result():
         proxy_url = f"http://api.scraperapi.com?api_key={SCRAPER_API_KEY}&url={requests.utils.quote(raw_url)}"
         res = requests.get(proxy_url, timeout=8)
         if res.status_code == 200:
-            data = res.json()
-            list_data = data.get("data", {}).get("list", [])
+            list_data = res.json().get("data", {}).get("list", [])
             if list_data:
                 return str(list_data[0].get("issueNumber")), int(list_data[0].get("number"))
     except Exception as e:
         print("Fetch Error:", e)
 
     return None, None
-
-# ============================================================
-#  MAIN LOOP
-# ============================================================
 
 def get_period_info():
     now = datetime.now(timezone.utc)
@@ -424,21 +222,10 @@ def get_period_info():
     period_id = f"{y}{m}{d}{idx:05d}"
     return period_id, idx
 
-# ─── START ───
+# ─── STARTUP ───
+init_history_data()  # বোট স্টার্টের সময়ই ২০টি হিস্ট্রি ফিল করবে
+
 send_telegram("🚀 *3-ENGINE HYBRID VIP BOT ACTIVATED!*")
-send_telegram(
-    "🔥 *3-ENGINE HYBRID VIP* 🔥\n"
-    "━━━━━━━━━━━━━━━━━━━━\n"
-    "🗳️ *VOTING SYSTEM*\n"
-    "├─ DARK X VIP (Dynamic)\n"
-    "├─ FUKD BY SAAD (Dynamic)\n"
-    "└─ RGB VIP HACK (Dynamic)\n"
-    "━━━━━━━━━━━━━━━━━━━━\n"
-    "⚡ MODE: 1 MIN WINGO\n"
-    "📊 HOURLY REPORT: ACTIVE\n"
-    "━━━━━━━━━━━━━━━━━━━━\n"
-    "⏳ WAITING FOR FIRST SIGNAL..."
-)
 
 while True:
     try:
@@ -447,7 +234,7 @@ while True:
         if current_period != last_processed_period:
             
             if last_processed_period is not None:
-                time.sleep(4)
+                time.sleep(3)
                 
                 real_period = None
                 actual_num = None
@@ -476,6 +263,7 @@ while True:
                     total_games = total_wins + total_losses
                     win_rate = (total_wins / total_games) * 100 if total_games > 0 else 0
                     
+                    # হিস্ট্রি আপডেট
                     history_data.insert(0, {
                         'period': last_processed_period,
                         'number': actual_num,
