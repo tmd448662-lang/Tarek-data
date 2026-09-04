@@ -37,6 +37,8 @@ threading.Thread(target=keep_alive, daemon=True).start()
 # ==================== BOT CONFIG ====================
 BOT_TOKEN = "8386058038:AAEwayH-C4AUr7L_tx6Ecz__xpIXnrekJw0"
 CHAT_ID = "5012028880"
+
+# ✅ 1 MIN WINGO API (ঠিক করা হলো)
 RAW_API = "https://draw.ar-lottery01.com/WinGo/WinGo_1M/GetHistoryIssuePage.json"
 
 bot = Bot(token=BOT_TOKEN)
@@ -119,11 +121,11 @@ def dark_x_engine(data):
     return {"prediction": pred, "confidence": conf, "number": num}
 
 # ============================================================
-#  ENGINE 2: RGB HACK (12-STEP PATTERN)
+#  ENGINE 2: RGB HACK (12-STEP PATTERN) - 1 MIN
 # ============================================================
 
 def rgb_hack_engine(data):
-    """RGB HACK - 12 Step Fixed Pattern"""
+    """RGB HACK - 12 Step Fixed Pattern (1 Min)"""
     if len(data) < 1:
         return {"prediction": "BIG", "confidence": 60, "number": 7}
     
@@ -221,7 +223,7 @@ async def send_hourly_report():
             f"📉 *WORST LOSS STREAK:* `{hourly_stats['max_loss_streak']}x`\n"
             f"🔥 *CURRENT STREAK:* `{hourly_stats['current_streak']}x {hourly_stats['streak_type']}`\n"
             f"━━━━━━━━━━━━━━━━━━━━\n"
-            f"🧠 *MATCHING SYSTEM: DARK X + RGB HACK*\n"
+            f"🧠 *MATCHING SYSTEM: DARK X + RGB HACK (1 Min)*\n"
             f"💎 RGB MATCHING HYBRID VIP"
         )
         
@@ -248,6 +250,7 @@ async def prediction_bot():
 
     print("🔥 RGB MATCHING HYBRID VIP BOT STARTED...")
     print("🧠 DARK X + RGB HACK (12-Step Pattern)")
+    print("📡 MODE: 1 MIN WINGO")
     print("✅ MATCH = SEND | ❌ NO MATCH = WAIT")
 
     try:
@@ -357,7 +360,7 @@ async def prediction_bot():
                     f"{streak_emoji} STREAK: {loss_streak:+d}\n"
                     f"👑 LEVEL: {current_level} ({multiplier})\n"
                     f"━━━━━━━━━━━━━━━━━━━━\n"
-                    f"🧠 MATCHING SYSTEM: DARK X + RGB HACK\n"
+                    f"🧠 MATCHING SYSTEM: DARK X + RGB HACK (1 Min)\n"
                     f"💎 RGB MATCHING HYBRID VIP"
                 )
                 
@@ -446,6 +449,7 @@ if __name__ == '__main__':
     print("🔥 RGB MATCHING HYBRID VIP BOT")
     print("━━━━━━━━━━━━━━━━━━━━")
     print("🧠 DARK X + RGB HACK (12-Step Pattern)")
+    print("📡 MODE: 1 MIN WINGO")
     print("✅ MATCH = SEND | ❌ NO MATCH = WAIT")
     print("━━━━━━━━━━━━━━━━━━━━")
     asyncio.run(prediction_bot())
