@@ -1,14 +1,21 @@
+# bot.py - সম্পূর্ণ কোড একটি ফাইলে
+
 import asyncio
 import time
 import requests
 import os
 import random
-from datetime import datetime
+from datetime import datetime, timezone
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import threading
 from telegram import Bot
 
-# ==================== RENDER WEB SERVICE PORT BINDING ====================
+# ==================== কনফিগারেশন ====================
+BOT_TOKEN = "8386058038:AAEwayH-C4AUr7L_tx6Ecz__xpIXnrekJw0"
+CHAT_ID = "5012028880"
+API_URL = "https://draw.ar-lottery01.com/WinGo/WinGo_1M/GetHistoryIssuePage.json"
+
+# ==================== ওয়েব সার্ভার (Render এর জন্য) ====================
 class DummyServer(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
@@ -22,7 +29,7 @@ def run_dummy_server():
 
 threading.Thread(target=run_dummy_server, daemon=True).start()
 
-# ==================== KEEP-ALIVE ====================
+# ==================== কিপ-এলাইভ ====================
 def keep_alive():
     while True:
         try:
@@ -34,28 +41,23 @@ def keep_alive():
 
 threading.Thread(target=keep_alive, daemon=True).start()
 
-# ==================== BOT CONFIG ====================
-BOT_TOKEN = "8386058038:AAEwayH-C4AUr7L_tx6Ecz__xpIXnrekJw0"
-CHAT_ID = "5012028880"
-
-API_URL = "https://draw.ar-lottery01.com/WinGo/WinGo_1M/GetHistoryIssuePage.json"
-
+# ==================== বট ইনিশিয়ালাইজ ====================
 bot = Bot(token=BOT_TOKEN)
 
-# ==================== GLOBAL STATS ====================
+# ==================== গ্লোবাল ভেরিয়েবল ====================
 total_wins = 0
 total_losses = 0
-loss_streak = 0          # positive = win streak, negative = loss streak
-current_level = 1        # 1, 2, or 3 (cycles on losses)
+loss_streak = 0
+current_level = 1
 total_rounds = 0
-history_data = []        # list of dicts {issueNumber, number, side}
+history_data = []
 
 last_predicted_period = None
 last_predicted_signal = None
 last_predicted_num = None
 prediction_sent_for_period = {}
 
-# ==================== HOURLY STATS ====================
+# ==================== আওয়ারলি স্ট্যাটস ====================
 hourly_stats = {
     'wins': 0,
     'losses': 0,
@@ -68,31 +70,23 @@ hourly_stats = {
 last_hour_report_time = time.time()
 
 # ============================================================
-#  ENGINE 1: DARK X (from first HTML)
+#  DARK X ENGINE (Titan HTML)
 # ============================================================
 def dark_x_engine(data, level):
-    """
-    Implements the Markov-chain logic from DARK X BHAI VIP V1.3.
-    data: list of recent results (each with 'number' and 'side')
-    level: current martingale level (1,2,3)
-    Returns: {'prediction': 'BIG'/'SMALL', 'confidence': int, 'number': int}
-    """
     if len(data) < 3:
         return {"prediction": "BIG", "confidence": 50, "number": 7}
-
+    
     types = [d['side'] for d in data[:10]]
     last1 = types[0] if len(types) > 0 else "BIG"
     last2 = types[1] if len(types) > 1 else "BIG"
-
-    # Default transition logic (as per HTML)
+    
     if last1 == "SMALL":
         pred = "BIG"
         conf = 75
     else:
         pred = "SMALL"
         conf = 60
-
-    # Sequence overrides
+    
     if last1 == "BIG" and last2 == "BIG":
         pred = "SMALL"
         conf = 90
@@ -105,44 +99,40 @@ def dark_x_engine(data, level):
     elif last1 == "BIG" and last2 == "SMALL":
         pred = "BIG"
         conf = 85
-
-    # Level 3 safety net: reverse based on latest actual number
+    
     if level == 3 and len(data) > 0:
         latest_num = data[0]['number']
         pred = "SMALL" if latest_num >= 5 else "BIG"
         conf = 99
-
-    # Generate a number for display (BIG: 5-9, SMALL: 0-4)
+    
     if pred == "BIG":
         num = random.randint(5, 9)
     else:
         num = random.randint(0, 4)
-
+    
     return {"prediction": pred, "confidence": conf, "number": num}
 
 # ============================================================
-#  ENGINE 2: RGB HACK (corrected 12-step pattern)
+#  RGB HACK ENGINE (Ansh Boss)
 # ============================================================
-def rgb_hack_engine(period_str):
-    """
-    Uses the fixed 12-step pattern from VIP NUMBER_decoded.html.
-    period_str: e.g., "20260904100011082"
-    We extract the last 5 digits as the period index (starting from 1).
-    For 1-minute mode, offset = 5, so pattern_index = (index + 5) % 12.
-    """
+def get_correct_period_index():
+    now = datetime.now(timezone.utc)
+    midnight = datetime(now.year, now.month, now.day, 0, 0, 0, tzinfo=timezone.utc)
+    diff_seconds = (now - midnight).total_seconds()
+    period_index = int(diff_seconds // 60) + 1
+    return period_index
+
+def rgb_hack_engine():
     PATTERN = [
         {"s": "BIG", "n": 7}, {"s": "SMALL", "n": 2}, {"s": "SMALL", "n": 4},
         {"s": "BIG", "n": 9}, {"s": "BIG", "n": 6}, {"s": "SMALL", "n": 0},
         {"s": "BIG", "n": 8}, {"s": "SMALL", "n": 3}, {"s": "SMALL", "n": 1},
         {"s": "BIG", "n": 5}, {"s": "BIG", "n": 7}, {"s": "SMALL", "n": 4}
     ]
-    # Extract the last 5 characters (period index)
-    try:
-        idx = int(period_str[-5:])
-    except:
-        idx = 0
-    # 1-minute offset = 5
-    pattern_index = (idx + 5) % 12
+    
+    period_index = get_correct_period_index()
+    pattern_index = (period_index + 5) % 12
+    
     pred = PATTERN[pattern_index]
     return {"prediction": pred["s"], "confidence": 78, "number": pred["n"]}
 
@@ -151,23 +141,23 @@ def rgb_hack_engine(period_str):
 # ============================================================
 def master_matching_system(data, period_str, level):
     dark = dark_x_engine(data, level)
-    rgb = rgb_hack_engine(period_str)
-
+    rgb = rgb_hack_engine()
+    
     if dark['prediction'] == rgb['prediction']:
         final_pred = dark['prediction']
-        final_num = rgb['number'] if rgb['number'] is not None else dark['number']
+        final_num = dark['number']
         final_conf = int((dark['confidence'] + rgb['confidence']) / 2)
         matched = True
         status = "✅ MATCH FOUND"
         icon = "🟢"
     else:
-        final_pred = "WAIT"
-        final_num = "--"
-        final_conf = 0
         matched = False
-        status = "⏳ WAITING - NO MATCH"
-        icon = "🟡"
-
+        status = "❌ NO MATCH"
+        icon = "🔴"
+        final_pred = None
+        final_num = None
+        final_conf = 0
+    
     return {
         'matched': matched,
         'prediction': final_pred,
@@ -179,9 +169,7 @@ def master_matching_system(data, period_str, level):
         'status_icon': icon
     }
 
-# ============================================================
-#  API FETCH
-# ============================================================
+# ==================== API ফেচ ====================
 def fetch_api_data():
     try:
         res = requests.get(API_URL + "?t=" + str(int(time.time() * 1000)), timeout=5)
@@ -192,9 +180,7 @@ def fetch_api_data():
         pass
     return []
 
-# ============================================================
-#  HOURLY REPORT
-# ============================================================
+# ==================== আওয়ারলি রিপোর্ট ====================
 async def send_hourly_report():
     global hourly_stats, last_hour_report_time
 
@@ -233,18 +219,15 @@ async def send_hourly_report():
         }
         last_hour_report_time = time.time()
 
-# ============================================================
-#  MAIN LOOP
-# ============================================================
+# ==================== মেইন লুপ ====================
 async def prediction_bot():
     global total_wins, total_losses, loss_streak, current_level
     global total_rounds, history_data, last_predicted_period
     global last_predicted_signal, last_predicted_num, prediction_sent_for_period
 
     print("🔥 RGB MATCHING 1MIN VIP BOT STARTED...")
-    print("🧠 DARK X + RGB HACK (12-Step Pattern)")
     print("📡 MODE: 1 MIN WINGO")
-    print("✅ MATCH = SEND | ❌ NO MATCH = WAIT")
+    print("🧠 ENGINES: DARK X + RGB HACK")
 
     try:
         await bot.send_message(
@@ -252,12 +235,10 @@ async def prediction_bot():
             text=(
                 "🔥 RGB MATCHING 1MIN VIP 🔥\n"
                 "━━━━━━━━━━━━━━━━━━━━\n"
-                "🧠 DARK X + RGB HACK (12-Step)\n"
+                "🧠 ENGINES: DARK X + RGB HACK\n"
                 "✅ MATCH FOUND = SEND PREDICTION\n"
                 "❌ NO MATCH = WAIT FOR NEXT ROUND\n"
-                "⭐ JACKPOT → WIN COUNT\n"
-                "📊 LOSS = STREAK -1, LEVEL UP\n"
-                "⚡ MODE: 1 MIN WINGO\n"
+                "📡 MODE: 1 MIN WINGO\n"
                 "━━━━━━━━━━━━━━━━━━━━\n"
                 "⏳ WAITING FOR FIRST SIGNAL..."
             )
@@ -273,6 +254,7 @@ async def prediction_bot():
 
             raw_list = fetch_api_data()
             if not raw_list:
+                print("⚠️ API থেকে ডেটা পাওয়া যায়নি")
                 continue
 
             history_data = []
@@ -289,6 +271,8 @@ async def prediction_bot():
             actual_num = latest['number']
             actual_type = "BIG" if actual_num >= 5 else "SMALL"
 
+            print(f"📡 LATEST PERIOD: {latest_issue}, NUMBER: {actual_num}")
+
             # ===== RESULT CHECK =====
             if last_predicted_period == latest_issue and last_predicted_signal is not None:
                 is_win = (last_predicted_signal == actual_type)
@@ -297,9 +281,8 @@ async def prediction_bot():
                 if is_win or is_jackpot:
                     total_wins += 1
                     hourly_stats['wins'] += 1
-                    status = "WIN"
-                    status_icon = "🟢"
-
+                    status = "WIN 🟢"
+                    
                     if loss_streak >= 0:
                         loss_streak += 1
                     else:
@@ -318,9 +301,8 @@ async def prediction_bot():
                 else:
                     total_losses += 1
                     hourly_stats['losses'] += 1
-                    status = "LOSS"
-                    status_icon = "🔴"
-
+                    status = "LOSS 🔴"
+                    
                     if loss_streak <= 0:
                         loss_streak -= 1
                     else:
@@ -346,12 +328,12 @@ async def prediction_bot():
                 streak_emoji = "🔥" if loss_streak > 0 else "📉" if loss_streak < 0 else "⏸️"
 
                 result_msg = (
-                    f"🎯 RESULT UPDATE {status_icon}\n"
+                    f"🎯 RESULT UPDATE\n"
                     f"━━━━━━━━━━━━━━━━━━━━\n"
                     f"🆔 PERIOD: #{latest_issue[-5:]}\n"
                     f"🎯 PREDICTED: {last_predicted_signal} → {last_predicted_num}\n"
                     f"🎰 ACTUAL: {actual_num} ({actual_type})\n"
-                    f"📌 RESULT: {status_icon} {status}{jackpot_text}\n"
+                    f"📌 RESULT: {status}{jackpot_text}\n"
                     f"━━━━━━━━━━━━━━━━━━━━\n"
                     f"📊 WIN RATE: {win_rate:.1f}% ({total_wins}W/{total_losses}L)\n"
                     f"{streak_emoji} STREAK: {loss_streak:+d}\n"
@@ -375,27 +357,28 @@ async def prediction_bot():
 
             # ===== NEW PREDICTION =====
             next_period = str(int(latest_issue) + 1)
+            print(f"🎯 NEXT PERIOD: {next_period}")
 
             if not prediction_sent_for_period.get(next_period, False):
                 pred = master_matching_system(history_data, next_period, current_level)
-                multiplier = f"{current_level}x"
-                streak_emoji = "🔥" if loss_streak > 0 else "📉" if loss_streak < 0 else "⏸️"
-
+                
                 if pred['matched']:
+                    multiplier = f"{current_level}x"
+                    streak_emoji = "🔥" if loss_streak > 0 else "📉" if loss_streak < 0 else "⏸️"
+                    
                     prediction_msg = (
                         f"🔥 RGB MATCHING 1MIN VIP 🔥\n"
                         f"━━━━━━━━━━━━━━━━━━━━\n"
                         f"🆔 PERIOD: #{next_period[-5:]}\n"
                         f"━━━━━━━━━━━━━━━━━━━━\n"
-                        f"✅ *MATCH FOUND!*\n"
+                        f"✅ MATCH FOUND!\n"
                         f"━━━━━━━━━━━━━━━━━━━━\n"
-                        f"📈 *FINAL PREDICTION*\n"
                         f"🎯 PREDICTION: {pred['prediction']}\n"
                         f"🔢 TARGET NUMBER: {pred['number']}\n"
                         f"⚡ CONFIDENCE: {pred['confidence']}%\n"
                         f"━━━━━━━━━━━━━━━━━━━━\n"
-                        f"🧠 *DARK X:* {pred['dark']['prediction']} ({pred['dark']['number']}) {pred['dark']['confidence']}%\n"
-                        f"🧠 *RGB HACK:* {pred['rgb']['prediction']} ({pred['rgb']['number']}) {pred['rgb']['confidence']}%\n"
+                        f"🧠 DARK X: {pred['dark']['prediction']} ({pred['dark']['number']}) {pred['dark']['confidence']}%\n"
+                        f"🧠 RGB HACK: {pred['rgb']['prediction']} ({pred['rgb']['number']}) {pred['rgb']['confidence']}%\n"
                         f"━━━━━━━━━━━━━━━━━━━━\n"
                         f"👑 LEVEL: {current_level} ({multiplier})\n"
                         f"{streak_emoji} STREAK: {loss_streak:+d}\n"
@@ -411,43 +394,27 @@ async def prediction_bot():
 
                     try:
                         await bot.send_message(chat_id=CHAT_ID, text=prediction_msg)
-                    except:
-                        pass
+                        print(f"✅ MATCH FOUND! PREDICTION SENT: {next_period} → {pred['prediction']}")
+                    except Exception as e:
+                        print(f"❌ SEND FAILED: {e}")
                 else:
-                    wait_msg = (
-                        f"⏳ *WAITING - NO MATCH*\n"
-                        f"━━━━━━━━━━━━━━━━━━━━\n"
-                        f"🆔 PERIOD: #{next_period[-5:]}\n"
-                        f"━━━━━━━━━━━━━━━━━━━━\n"
-                        f"🧠 *DARK X:* {pred['dark']['prediction']} ({pred['dark']['number']}) {pred['dark']['confidence']}%\n"
-                        f"🧠 *RGB HACK:* {pred['rgb']['prediction']} ({pred['rgb']['number']}) {pred['rgb']['confidence']}%\n"
-                        f"━━━━━━━━━━━━━━━━━━━━\n"
-                        f"❌ *NO MATCH FOUND*\n"
-                        f"⏳ *WAITING FOR NEXT ROUND...*\n"
-                        f"━━━━━━━━━━━━━━━━━━━━\n"
-                        f"💎 RGB MATCHING 1MIN VIP"
-                    )
-                    try:
-                        await bot.send_message(chat_id=CHAT_ID, text=wait_msg)
-                    except:
-                        pass
+                    print(f"❌ NO MATCH: {next_period} | DARK X: {pred['dark']['prediction']} | RGB: {pred['rgb']['prediction']}")
 
                 if len(prediction_sent_for_period) > 5:
                     oldest = min(prediction_sent_for_period.keys())
                     del prediction_sent_for_period[oldest]
 
         except Exception as e:
-            print(f"Loop Error: {e}")
+            print(f"❌ Loop Error: {e}")
             await asyncio.sleep(5)
 
-# ============================================================
-#  START
-# ============================================================
+# ==================== স্টার্ট ====================
 if __name__ == '__main__':
     print("🔥 RGB MATCHING 1MIN VIP BOT")
     print("━━━━━━━━━━━━━━━━━━━━")
-    print("🧠 DARK X + RGB HACK (12-Step Pattern)")
+    print("🧠 ENGINES: DARK X + RGB HACK")
+    print("✅ MATCH FOUND = SEND PREDICTION")
+    print("❌ NO MATCH = WAIT FOR NEXT ROUND")
     print("📡 MODE: 1 MIN WINGO")
-    print("✅ MATCH = SEND | ❌ NO MATCH = WAIT")
     print("━━━━━━━━━━━━━━━━━━━━")
     asyncio.run(prediction_bot())
