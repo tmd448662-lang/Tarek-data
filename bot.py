@@ -1,9 +1,12 @@
-# ============================================================
-# 🎯 RGB MATCHING 1MIN VIP BOT
-# 📡 শুধু 1 MIN WINGO
-# ✅ MATCH = প্রেডিকশন + রেজাল্ট
-# ❌ NO MATCH = শুধু রেজাল্ট দেখাবে (কাউন্ট হবে না)
-# ============================================================
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+"""
+🎯 RGB MATCHING 1MIN VIP BOT
+📡 শুধু 1 MIN WINGO
+✅ MATCH = প্রেডিকশন + রেজাল্ট
+❌ NO MATCH = শুধু রেজাল্ট দেখাবে (কাউন্ট হবে না)
+"""
 
 import asyncio
 import time
@@ -49,7 +52,6 @@ threading.Thread(target=keep_alive, daemon=True).start()
 bot = Bot(token=BOT_TOKEN)
 
 # ==================== গ্লোবাল ভেরিয়েবল ====================
-# শুধু MATCH এর স্ট্যাটস
 match_wins = 0
 match_losses = 0
 match_total = 0
@@ -65,7 +67,7 @@ last_predicted_num = None
 last_match_status = None
 prediction_sent_for_period = {}
 
-# ==================== আওয়ারলি স্ট্যাটস (শুধু MATCH) ====================
+# ==================== আওয়ারলি স্ট্যাটস ====================
 hourly_stats = {
     'total_rounds': 0,
     'total_wins': 0,
@@ -188,7 +190,7 @@ def fetch_api_data():
         pass
     return []
 
-# ==================== আওয়ারলি রিপোর্ট (শুধু MATCH) ====================
+# ==================== আওয়ারলি রিপোর্ট ====================
 async def send_hourly_report():
     global hourly_stats, last_hour_report_time
 
@@ -294,13 +296,17 @@ async def prediction_bot():
                 
                 if last_match_status == 'match' and last_predicted_signal is not None:
                     # ✅ MATCH — WIN/LOSS কাউন্ট হবে
+                    
+                    # 🔥 শুধু সাইজ মিললে WIN
                     is_win = (last_predicted_signal == actual_type)
-                    is_jackpot = (actual_num == 0 or actual_num == 5)
+                    
+                    # JACKPOT বাদ
+                    jackpot_text = ""
 
-                    if is_win or is_jackpot:
+                    if is_win:
                         match_wins += 1
                         hourly_stats['total_wins'] += 1
-                        status = "WIN 🟢"
+                        status = "✅ WIN"
                         
                         if loss_streak >= 0:
                             loss_streak += 1
@@ -316,11 +322,10 @@ async def prediction_bot():
                         if hourly_stats['current_streak'] > hourly_stats['max_win_streak']:
                             hourly_stats['max_win_streak'] = hourly_stats['current_streak']
 
-                        jackpot_text = " ⭐ JACKPOT!" if is_jackpot else ""
                     else:
                         match_losses += 1
                         hourly_stats['total_losses'] += 1
-                        status = "LOSS 🔴"
+                        status = "❌ LOSS"
                         
                         if loss_streak <= 0:
                             loss_streak -= 1
@@ -335,8 +340,6 @@ async def prediction_bot():
                             hourly_stats['streak_type'] = 'LOSS'
                         if hourly_stats['current_streak'] > hourly_stats['max_loss_streak']:
                             hourly_stats['max_loss_streak'] = hourly_stats['current_streak']
-
-                        jackpot_text = ""
 
                     match_total += 1
                     total_rounds += 1
@@ -353,7 +356,7 @@ async def prediction_bot():
                         f"🆔 PERIOD: #{latest_issue[-5:]}\n"
                         f"🎯 PREDICTED: {last_predicted_signal} → {last_predicted_num}\n"
                         f"🎰 ACTUAL: {actual_num} ({actual_type})\n"
-                        f"📌 RESULT: {status}{jackpot_text}\n"
+                        f"📌 RESULT: {status}\n"
                         f"━━━━━━━━━━━━━━━━━━━━\n"
                         f"📊 WIN RATE: {win_rate:.1f}% ({match_wins}W/{match_losses}L)\n"
                         f"{streak_emoji} STREAK: {loss_streak:+d}\n"
@@ -456,7 +459,7 @@ async def prediction_bot():
                     )
 
                     last_predicted_period = next_period
-                    last_predicted_signal = None  # প্রেডিকশন নেই
+                    last_predicted_signal = None
                     last_predicted_num = None
                     prediction_sent_for_period[next_period] = True
 
