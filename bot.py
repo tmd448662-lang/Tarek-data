@@ -126,7 +126,6 @@ class UltimateProAI:
     def predict(self, data):
         """
         ULTIMATE PRO AI PREDICTION ENGINE
-        HTML থেকে সরাসরি নেওয়া অ্যালগরিদম
         """
         if len(data) < 8:
             return {
@@ -134,28 +133,21 @@ class UltimateProAI:
                 'number': 5,
                 'confidence': 60,
                 'reason': 'INITIALIZING...',
-                'accuracy': 0,
-                'numB': 7,
-                'numS': 2
+                'accuracy': 0
             }
         
         votes = {'BIG': 0, 'SMALL': 0}
         weights = self.memory.adaptive_weights
         
-        # ডাটা প্রস্তুত
         types = [d['side'] for d in data[:5]]
         numbers = [d['number'] for d in data[:15]]
         
-        # ============================================================
         # 1. MIRROR PATTERN
-        # ============================================================
         if len(types) >= 5 and types[0] == types[4] and types[1] == types[3]:
             pred = 'SMALL' if types[0] == 'BIG' else 'BIG'
             votes[pred] += weights.get('mirror', 3) * 1.5
         
-        # ============================================================
         # 2. STREAK ANALYSIS
-        # ============================================================
         streak = 1
         for i in range(1, len(types)):
             if types[i] == types[i-1]:
@@ -167,9 +159,7 @@ class UltimateProAI:
             pred = 'SMALL' if types[0] == 'BIG' else 'BIG'
             votes[pred] += 4 if streak >= 6 else 2
         
-        # ============================================================
         # 3. ALTERNATING PATTERN
-        # ============================================================
         if len(data) >= 5:
             last_5 = [d['side'] for d in data[:5]]
             is_alt = all(last_5[i] != last_5[i-1] for i in range(1, 5))
@@ -179,18 +169,14 @@ class UltimateProAI:
             if last_5[0] == last_5[1] and last_5[3] == last_5[4] and last_5[0] == last_5[4]:
                 votes[last_5[0]] += 3
         
-        # ============================================================
         # 4. TREND SCORE
-        # ============================================================
         score = 0
         for i in range(min(len(data), 8)):
             weight = [8, 5, 3, 2, 1, 1, 0, 0][i] if i < 8 else 0
             score += (1 if data[i]['number'] >= 5 else -1) * weight
         votes['BIG' if score > 0 else 'SMALL'] += 2
         
-        # ============================================================
         # 5. MISSING NUMBERS (GAP)
-        # ============================================================
         all_nums = set(range(10))
         present = set(numbers[:15])
         missing = list(all_nums - present)
@@ -198,29 +184,23 @@ class UltimateProAI:
             num = missing[0]
             votes['BIG' if num >= 5 else 'SMALL'] += 1.5
         
-        # ============================================================
         # 6. ACCURACY ADJUSTMENT
-        # ============================================================
         accuracy = self.memory.correct_predictions / max(self.memory.total_predictions, 1)
         if accuracy < 0.5:
             pred = 'SMALL' if self.memory.last_prediction == 'BIG' else 'BIG'
             votes[pred] += 2
         
-        # ============================================================
         # 7. LOSS STREAK RECOVERY
-        # ============================================================
         if len(self.memory.last_10_accuracy) >= 5:
             last_5_loss = sum(1 for x in self.memory.last_10_accuracy[-5:] if not x)
             if last_5_loss >= 3:
                 votes['SMALL' if data[0]['side'] == 'BIG' else 'BIG'] += 3
         
-        # ============================================================
         # FINAL DECISION
-        # ============================================================
         final_pred = 'BIG' if votes['BIG'] >= votes['SMALL'] else 'SMALL'
         diff = abs(votes['BIG'] - votes['SMALL'])
         
-        # কনফিডেন্স ক্যালকুলেশন
+        # কনফিডেন্স
         if diff >= 5:
             confidence = 95
         elif diff >= 4:
@@ -240,55 +220,30 @@ class UltimateProAI:
         
         # নাম্বার সিলেকশন
         if final_pred == 'BIG':
-            # BIG নাম্বার পছন্দ (সবচেয়ে কম ব্যবহৃত)
             freq = {}
             for n in numbers[:15]:
                 if n >= 5:
                     freq[n] = freq.get(n, 0) + 1
             if freq:
-                main_num = min(freq, key=freq.get)
+                num = min(freq, key=freq.get)
             else:
-                main_num = random.choice([5, 6, 7, 8, 9])
-            
-            # SMALL হেজ নাম্বার
-            freq_s = {}
-            for n in numbers[:15]:
-                if n < 5:
-                    freq_s[n] = freq_s.get(n, 0) + 1
-            if freq_s:
-                hedge_num = min(freq_s, key=freq_s.get)
-            else:
-                hedge_num = random.choice([0, 1, 2, 3, 4])
+                num = random.choice([5, 6, 7, 8, 9])
         else:
-            # SMALL নাম্বার পছন্দ
             freq = {}
             for n in numbers[:15]:
                 if n < 5:
                     freq[n] = freq.get(n, 0) + 1
             if freq:
-                main_num = min(freq, key=freq.get)
+                num = min(freq, key=freq.get)
             else:
-                main_num = random.choice([0, 1, 2, 3, 4])
-            
-            # BIG হেজ নাম্বার
-            freq_b = {}
-            for n in numbers[:15]:
-                if n >= 5:
-                    freq_b[n] = freq_b.get(n, 0) + 1
-            if freq_b:
-                hedge_num = min(freq_b, key=freq_b.get)
-            else:
-                hedge_num = random.choice([5, 6, 7, 8, 9])
+                num = random.choice([0, 1, 2, 3, 4])
         
         return {
             'prediction': final_pred,
-            'number': main_num,
+            'number': num,
             'confidence': confidence,
             'reason': self.get_reason(final_pred, diff, accuracy),
-            'accuracy': round(accuracy * 100, 1),
-            'numB': main_num if final_pred == 'BIG' else hedge_num,
-            'numS': hedge_num if final_pred == 'BIG' else main_num,
-            'votes': votes
+            'accuracy': round(accuracy * 100, 1)
         }
     
     def get_reason(self, pred, diff, accuracy):
@@ -308,7 +263,6 @@ class UltimateProAI:
 # ============================================================
 history_data = []
 last_period = None
-last_result = None
 prediction_sent = False
 result_sent = False
 current_prediction = None
@@ -368,7 +322,6 @@ async def send_hourly_report():
             hourly_report_sent = True
             last_hour_report_time = current_time
             
-            # রিসেট স্ট্যাটস
             hourly_stats = {
                 'total_rounds': 0,
                 'total_wins': 0,
@@ -398,7 +351,7 @@ def fetch_api_data():
 # 🚀 মেইন লুপ
 # ============================================================
 async def prediction_bot():
-    global history_data, last_period, last_result
+    global history_data, last_period
     global prediction_sent, result_sent, current_prediction
     global wins, losses, hourly_stats, hourly_report_sent
 
@@ -478,7 +431,6 @@ async def prediction_bot():
                     total = wins + losses
                     win_rate = (wins / total * 100) if total > 0 else 0
 
-                    # হাওয়ারলি স্ট্যাটস আপডেট
                     hourly_stats['total_rounds'] += 1
                     if is_win:
                         if hourly_stats['streak_type'] == 'WIN':
@@ -520,7 +472,6 @@ async def prediction_bot():
                     except Exception as e:
                         print(f"❌ Failed to send result: {e}")
                     
-                    # হাওয়ারলি রিপোর্ট চেক
                     await send_hourly_report()
 
             # ============================================================
@@ -530,14 +481,10 @@ async def prediction_bot():
             
             if last_period is None or last_period != latest_issue:
                 if not prediction_sent:
-                    # ULTIMATE PRO AI থেকে প্রেডিকশন
                     pred = engine.predict(history_data)
                     current_prediction = pred
                     prediction_sent = True
                     result_sent = False
-
-                    # হেজ নাম্বার
-                    hedge_num = pred['numS'] if pred['prediction'] == 'BIG' else pred['numB']
 
                     pred_msg = (
                         f"🔥 *PREDICTION* 🔥\n"
@@ -545,8 +492,7 @@ async def prediction_bot():
                         f"🆔 #{next_period[-5:]}\n"
                         f"━━━━━━━━━━━━━━━━━━━━\n"
                         f"🎯 *{pred['prediction']}*\n"
-                        f"🔢 MAIN NUMBER: `{pred['number']}`\n"
-                        f"🛡️ HEDGE NUMBER: `{hedge_num}`\n"
+                        f"🔢 NUMBER: `{pred['number']}`\n"
                         f"⚡ CONFIDENCE: `{pred['confidence']}%`\n"
                         f"━━━━━━━━━━━━━━━━━━━━\n"
                         f"🧠 REASON: {pred['reason']}\n"
