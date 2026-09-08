@@ -96,7 +96,6 @@ class UltimateMemory:
         if len(self.last_10_accuracy) > 20:
             self.last_10_accuracy.pop(0)
             
-        # অ্যাডাপটিভ ওয়েট আপডেট
         if len(self.last_10_accuracy) >= 5:
             last_5 = self.last_10_accuracy[-5:]
             accuracy = sum(1 for x in last_5 if x) / 5
@@ -124,9 +123,6 @@ class UltimateProAI:
         self.memory = UltimateMemory()
         
     def predict(self, data):
-        """
-        ULTIMATE PRO AI PREDICTION ENGINE
-        """
         if len(data) < 8:
             return {
                 'prediction': 'BIG',
@@ -176,7 +172,7 @@ class UltimateProAI:
             score += (1 if data[i]['number'] >= 5 else -1) * weight
         votes['BIG' if score > 0 else 'SMALL'] += 2
         
-        # 5. MISSING NUMBERS (GAP)
+        # 5. MISSING NUMBERS
         all_nums = set(range(10))
         present = set(numbers[:15])
         missing = list(all_nums - present)
@@ -196,11 +192,9 @@ class UltimateProAI:
             if last_5_loss >= 3:
                 votes['SMALL' if data[0]['side'] == 'BIG' else 'BIG'] += 3
         
-        # FINAL DECISION
         final_pred = 'BIG' if votes['BIG'] >= votes['SMALL'] else 'SMALL'
         diff = abs(votes['BIG'] - votes['SMALL'])
         
-        # কনফিডেন্স
         if diff >= 5:
             confidence = 95
         elif diff >= 4:
@@ -269,6 +263,8 @@ current_prediction = None
 engine = UltimateProAI()
 wins = 0
 losses = 0
+prediction_pending = False
+pending_period = None
 
 # Hourly Stats
 hourly_stats = {
@@ -354,6 +350,7 @@ async def prediction_bot():
     global history_data, last_period
     global prediction_sent, result_sent, current_prediction
     global wins, losses, hourly_stats, hourly_report_sent
+    global prediction_pending, pending_period
 
     print("🔥 ULTIMATE PRO AI BOT STARTED...")
     print("━━━━━━━━━━━━━━━━━━━━")
@@ -408,9 +405,10 @@ async def prediction_bot():
             print(f"📡 Period: {latest_issue} | Result: {actual_num} ({actual_type})")
 
             # ============================================================
-            # 🔥 RESULT CHECK
+            # 🔥 RESULT CHECK - যখন নতুন পিরিয়ড আসে
             # ============================================================
             if last_period is not None and last_period != latest_issue:
+                # রেজাল্ট পাঠান
                 if current_prediction is not None and not result_sent:
                     is_win = (current_prediction['prediction'] == actual_type)
                     is_jackpot = (actual_num == current_prediction['number'])
@@ -473,41 +471,46 @@ async def prediction_bot():
                         print(f"❌ Failed to send result: {e}")
                     
                     await send_hourly_report()
+                    
+                    # রিসেট করুন - নতুন প্রেডিকশনের জন্য
+                    prediction_sent = False
+                    current_prediction = None
+                    result_sent = False
 
             # ============================================================
-            # 🔥 NEW PREDICTION
+            # 🔥 NEW PREDICTION - শুধু যখন প্রেডিকশন পাঠানো হয়নি
             # ============================================================
             next_period = str(int(latest_issue) + 1)
             
-            if last_period is None or last_period != latest_issue:
-                if not prediction_sent:
-                    pred = engine.predict(history_data)
-                    current_prediction = pred
-                    prediction_sent = True
-                    result_sent = False
+            if last_period is None or (last_period != latest_issue and not prediction_sent):
+                # নতুন প্রেডিকশন
+                pred = engine.predict(history_data)
+                current_prediction = pred
+                prediction_sent = True
+                result_sent = False
 
-                    pred_msg = (
-                        f"🔥 *PREDICTION* 🔥\n"
-                        f"━━━━━━━━━━━━━━━━━━━━\n"
-                        f"🆔 #{next_period[-5:]}\n"
-                        f"━━━━━━━━━━━━━━━━━━━━\n"
-                        f"🎯 *{pred['prediction']}*\n"
-                        f"🔢 NUMBER: `{pred['number']}`\n"
-                        f"⚡ CONFIDENCE: `{pred['confidence']}%`\n"
-                        f"━━━━━━━━━━━━━━━━━━━━\n"
-                        f"🧠 REASON: {pred['reason']}\n"
-                        f"📈 AI ACCURACY: `{pred['accuracy']}%`\n"
-                        f"━━━━━━━━━━━━━━━━━━━━\n"
-                        f"⏳ RESULT AWAITING...\n"
-                        f"💎 ULTIMATE PRO AI"
-                    )
+                pred_msg = (
+                    f"🔥 *PREDICTION* 🔥\n"
+                    f"━━━━━━━━━━━━━━━━━━━━\n"
+                    f"🆔 #{next_period[-5:]}\n"
+                    f"━━━━━━━━━━━━━━━━━━━━\n"
+                    f"🎯 *{pred['prediction']}*\n"
+                    f"🔢 NUMBER: `{pred['number']}`\n"
+                    f"⚡ CONFIDENCE: `{pred['confidence']}%`\n"
+                    f"━━━━━━━━━━━━━━━━━━━━\n"
+                    f"🧠 REASON: {pred['reason']}\n"
+                    f"📈 AI ACCURACY: `{pred['accuracy']}%`\n"
+                    f"━━━━━━━━━━━━━━━━━━━━\n"
+                    f"⏳ RESULT AWAITING...\n"
+                    f"💎 ULTIMATE PRO AI"
+                )
 
-                    try:
-                        await bot.send_message(chat_id=CHAT_ID, text=pred_msg, parse_mode="Markdown")
-                        print(f"✅ Prediction sent for {next_period}")
-                        await asyncio.sleep(1)
-                    except Exception as e:
-                        print(f"❌ Failed to send prediction: {e}")
+                try:
+                    await bot.send_message(chat_id=CHAT_ID, text=pred_msg, parse_mode="Markdown")
+                    print(f"✅ Prediction sent for {next_period}")
+                    await asyncio.sleep(1)
+                except Exception as e:
+                    print(f"❌ Failed to send prediction: {e}")
 
             last_period = latest_issue
 
