@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 
 """
-🔥 ULTIMATE PRO AI HACK BOT — Wingo 1M Predictor
-🧠 ENGINE: ULTIMATE PRO AI (PURE HTML ALGORITHM)
+🔥 ULTIMATE PRO AI BOT — Wingo 1M Predictor
+🧠 ENGINE: ULTIMATE PRO AI ONLY (NO CORE POWER)
 📡 MODE: 1 MINUTE
 ✅ FIRST RESULT → THEN PREDICTION
 📊 HOURLY REPORT INCLUDED
@@ -64,66 +64,55 @@ threading.Thread(target=keep_alive, daemon=True).start()
 bot = Bot(token=BOT_TOKEN)
 
 # ============================================================
-# 🧠 ULTIMATE PRO AI MEMORY (HTML থেকে নেওয়া)
-# ============================================================
-class UltimateMemory:
-    def __init__(self):
-        self.loss_streak = 0
-        self.total_predictions = 0
-        self.correct_predictions = 0
-        self.last_10_accuracy = []
-        self.last_prediction = "BIG"
-        self.adaptive_weights = {
-            'mirror': 3,
-            'ema': 2,
-            'gap': 1,
-            'cluster': 2,
-            'trend': 2
-        }
-        self.period_counter = 0
-        
-    def update(self, is_win, prediction):
-        self.total_predictions += 1
-        if is_win:
-            self.correct_predictions += 1
-            self.loss_streak = 0
-            self.last_10_accuracy.append(True)
-        else:
-            self.loss_streak += 1
-            self.last_10_accuracy.append(False)
-            
-        if len(self.last_10_accuracy) > 20:
-            self.last_10_accuracy.pop(0)
-            
-        if len(self.last_10_accuracy) >= 5:
-            last_5 = self.last_10_accuracy[-5:]
-            accuracy = sum(1 for x in last_5 if x) / 5
-            if accuracy < 0.4 and self.total_predictions > 10:
-                self.adaptive_weights['gap'] = self.adaptive_weights.get('gap', 1) + 0.5
-                self.adaptive_weights['mirror'] = max(0.5, self.adaptive_weights.get('mirror', 3) - 0.5)
-            elif accuracy > 0.7:
-                self.adaptive_weights['mirror'] = self.adaptive_weights.get('mirror', 3) + 0.3
-                
-        for key in self.adaptive_weights:
-            self.adaptive_weights[key] = max(0.5, min(5, self.adaptive_weights[key]))
-            
-        self.last_prediction = prediction
-        
-    def get_accuracy(self):
-        if self.total_predictions == 0:
-            return 0
-        return (self.correct_predictions / self.total_predictions) * 100
-
-# ============================================================
-# 🧠 ULTIMATE PRO AI ENGINE (HTML থেকে সরাসরি নেওয়া)
+# 🧠 ULTIMATE PRO AI (শুধু Ultimate Engine)
 # ============================================================
 class UltimateProAI:
     def __init__(self):
-        self.memory = UltimateMemory()
+        self.memory = {
+            'loss_streak': 0,
+            'total_predictions': 0,
+            'correct_predictions': 0,
+            'last_10_accuracy': [],
+            'last_prediction': 'BIG',
+            'adaptive_weights': {'mirror': 3, 'ema': 2, 'gap': 1, 'cluster': 2, 'trend': 2}
+        }
+        
+    def update_memory(self, is_win, prediction):
+        self.memory['total_predictions'] += 1
+        if is_win:
+            self.memory['correct_predictions'] += 1
+            self.memory['loss_streak'] = 0
+            self.memory['last_10_accuracy'].append(True)
+        else:
+            self.memory['loss_streak'] += 1
+            self.memory['last_10_accuracy'].append(False)
+            
+        if len(self.memory['last_10_accuracy']) > 20:
+            self.memory['last_10_accuracy'].pop(0)
+            
+        if len(self.memory['last_10_accuracy']) >= 5:
+            last_5 = self.memory['last_10_accuracy'][-5:]
+            accuracy = sum(1 for x in last_5 if x) / 5
+            if accuracy < 0.4 and self.memory['total_predictions'] > 10:
+                self.memory['adaptive_weights']['gap'] = self.memory['adaptive_weights'].get('gap', 1) + 0.5
+                self.memory['adaptive_weights']['mirror'] = max(0.5, self.memory['adaptive_weights'].get('mirror', 3) - 0.5)
+            elif accuracy > 0.7:
+                self.memory['adaptive_weights']['mirror'] = self.memory['adaptive_weights'].get('mirror', 3) + 0.3
+                
+        for key in self.memory['adaptive_weights']:
+            self.memory['adaptive_weights'][key] = max(0.5, min(5, self.memory['adaptive_weights'][key]))
+            
+        self.memory['last_prediction'] = prediction
+        
+    def get_accuracy(self):
+        if self.memory['total_predictions'] == 0:
+            return 0
+        return (self.memory['correct_predictions'] / self.memory['total_predictions']) * 100
         
     def predict(self, data):
         """
-        ULTIMATE PRO AI - HTML থেকে সরাসরি অ্যালগরিদম
+        ULTIMATE PRO AI - শুধু Ultimate Engine
+        HTML এ ULTIMATE PRO ENGINE যা দেখায়
         """
         if len(data) < 8:
             return {
@@ -135,20 +124,13 @@ class UltimateProAI:
             }
         
         votes = {'BIG': 0, 'SMALL': 0}
-        weights = self.memory.adaptive_weights
+        weights = self.memory['adaptive_weights']
         
         types = [d['side'] for d in data[:5]]
         numbers = [d['number'] for d in data[:15]]
         
         # ============================================================
-        # 1. MIRROR PATTERN
-        # ============================================================
-        if len(types) >= 5 and types[0] == types[4] and types[1] == types[3]:
-            pred = 'SMALL' if types[0] == 'BIG' else 'BIG'
-            votes[pred] += weights.get('mirror', 3) * 1.5
-        
-        # ============================================================
-        # 2. STREAK ANALYSIS
+        # 1. STREAK ANALYSIS
         # ============================================================
         streak = 1
         for i in range(1, len(types)):
@@ -162,7 +144,7 @@ class UltimateProAI:
             votes[pred] += 4 if streak >= 6 else 2
         
         # ============================================================
-        # 3. ALTERNATING PATTERN
+        # 2. ALTERNATING PATTERN
         # ============================================================
         if len(data) >= 5:
             last_5 = [d['side'] for d in data[:5]]
@@ -170,11 +152,9 @@ class UltimateProAI:
             if is_alt:
                 pred = 'SMALL' if last_5[-1] == 'BIG' else 'BIG'
                 votes[pred] += 3
-            if last_5[0] == last_5[1] and last_5[3] == last_5[4] and last_5[0] == last_5[4]:
-                votes[last_5[0]] += 3
         
         # ============================================================
-        # 4. TREND SCORE
+        # 3. TREND SCORE
         # ============================================================
         score = 0
         for i in range(min(len(data), 8)):
@@ -183,7 +163,7 @@ class UltimateProAI:
         votes['BIG' if score > 0 else 'SMALL'] += 2
         
         # ============================================================
-        # 5. MISSING NUMBERS (GAP)
+        # 4. MISSING NUMBERS (GAP)
         # ============================================================
         all_nums = set(range(10))
         present = set(numbers[:15])
@@ -193,18 +173,18 @@ class UltimateProAI:
             votes['BIG' if num >= 5 else 'SMALL'] += 1.5
         
         # ============================================================
-        # 6. ACCURACY ADJUSTMENT
+        # 5. ACCURACY ADJUSTMENT
         # ============================================================
-        accuracy = self.memory.correct_predictions / max(self.memory.total_predictions, 1)
+        accuracy = self.memory['correct_predictions'] / max(self.memory['total_predictions'], 1)
         if accuracy < 0.5:
-            pred = 'SMALL' if self.memory.last_prediction == 'BIG' else 'BIG'
+            pred = 'SMALL' if self.memory['last_prediction'] == 'BIG' else 'BIG'
             votes[pred] += 2
         
         # ============================================================
-        # 7. LOSS STREAK RECOVERY
+        # 6. LOSS STREAK RECOVERY
         # ============================================================
-        if len(self.memory.last_10_accuracy) >= 5:
-            last_5_loss = sum(1 for x in self.memory.last_10_accuracy[-5:] if not x)
+        if len(self.memory['last_10_accuracy']) >= 5:
+            last_5_loss = sum(1 for x in self.memory['last_10_accuracy'][-5:] if not x)
             if last_5_loss >= 3:
                 votes['SMALL' if data[0]['side'] == 'BIG' else 'BIG'] += 3
         
@@ -214,7 +194,7 @@ class UltimateProAI:
         final_pred = 'BIG' if votes['BIG'] >= votes['SMALL'] else 'SMALL'
         diff = abs(votes['BIG'] - votes['SMALL'])
         
-        # CONFIDENCE
+        # Confidence
         if diff >= 5:
             confidence = 95
         elif diff >= 4:
@@ -232,7 +212,7 @@ class UltimateProAI:
             confidence += 5
         confidence = min(95, confidence)
         
-        # NUMBER SELECTION
+        # Number Selection - Ultimate Engine style
         if final_pred == 'BIG':
             freq = {}
             for n in numbers[:15]:
@@ -252,7 +232,7 @@ class UltimateProAI:
             else:
                 num = random.choice([0, 1, 2, 3, 4])
         
-        # REASON
+        # Reason
         if diff >= 5:
             reason = "🔥 STRONG SIGNAL"
         elif diff >= 4:
@@ -371,7 +351,7 @@ async def prediction_bot():
 
     print("🔥 ULTIMATE PRO AI BOT STARTED...")
     print("━━━━━━━━━━━━━━━━━━━━")
-    print("🧠 ENGINE: ULTIMATE PRO AI")
+    print("🧠 ENGINE: ULTIMATE PRO AI (ONLY ULTIMATE)")
     print("📡 MODE: 1 MINUTE")
     print("✅ RESULT → PREDICTION")
     print("📊 HOURLY REPORT: ENABLED")
@@ -440,8 +420,8 @@ async def prediction_bot():
                         hourly_stats['total_losses'] += 1
                         status = "❌ LOSS"
                     
-                    engine.memory.update(is_win, current_prediction['prediction'])
-                    accuracy = engine.memory.get_accuracy()
+                    engine.update_memory(is_win, current_prediction['prediction'])
+                    accuracy = engine.get_accuracy()
                     total = wins + losses
                     win_rate = (wins / total * 100) if total > 0 else 0
 
@@ -472,7 +452,7 @@ async def prediction_bot():
                         f"📌 {status}\n"
                         f"━━━━━━━━━━━━━━━━━━━━\n"
                         f"📊 WIN RATE: {win_rate:.1f}% ({wins}W/{losses}L)\n"
-                        f"🔥 STREAK: {engine.memory.loss_streak:+d}\n"
+                        f"🔥 STREAK: {engine.memory['loss_streak']:+d}\n"
                         f"📈 ACCURACY: {accuracy:.1f}%\n"
                         f"━━━━━━━━━━━━━━━━━━━━\n"
                         f"💎 ULTIMATE PRO AI"
@@ -488,7 +468,6 @@ async def prediction_bot():
                     
                     await send_hourly_report()
                     
-                    # রিসেট
                     prediction_sent = False
                     current_prediction = None
                     result_sent = False
@@ -505,7 +484,7 @@ async def prediction_bot():
                 result_sent = False
 
                 pred_msg = (
-                    f"🔥 *PREDICTION* 🔥\n"
+                    f"🔥 *ULTIMATE PREDICTION* 🔥\n"
                     f"━━━━━━━━━━━━━━━━━━━━\n"
                     f"🆔 #{next_period[-5:]}\n"
                     f"━━━━━━━━━━━━━━━━━━━━\n"
@@ -533,16 +512,13 @@ async def prediction_bot():
             print(f"❌ Error in main loop: {e}")
             await asyncio.sleep(5)
 
-# ============================================================
-# স্টার্ট
-# ============================================================
 if __name__ == '__main__':
     print("🔥 ULTIMATE PRO AI BOT")
     print("━━━━━━━━━━━━━━━━━━━━")
     print(f"🤖 TOKEN: {BOT_TOKEN[:10]}...")
     print(f"📡 CHAT: {CHAT_ID}")
     print("━━━━━━━━━━━━━━━━━━━━")
-    print("🧠 ENGINE: ULTIMATE PRO AI")
+    print("🧠 ENGINE: ULTIMATE PRO AI (ONLY ULTIMATE)")
     print("📡 MODE: 1 MINUTE")
     print("📊 HOURLY REPORT: ENABLED")
     print("━━━━━━━━━━━━━━━━━━━━")
