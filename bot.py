@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 
 """
-🔥 ULTIMATE PRO AI BOT — Wingo 1M Predictor
-🧠 ENGINE: ULTIMATE PRO ENGINE (100% HTML)
+🔥 ULTIMATE PRO ENGINE BOT — Wingo 1M Predictor
+🧠 ENGINE: ULTIMATE PRO ENGINE (DIRECT HTML JAVASCRIPT)
 📡 MODE: 1 MINUTE
 ✅ FIRST RESULT → THEN PREDICTION
 📊 HOURLY REPORT INCLUDED
@@ -38,7 +38,7 @@ class DummyServer(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.end_headers()
-        self.wfile.write(b"ULTIMATE PRO AI BOT is running!")
+        self.wfile.write(b"ULTIMATE PRO ENGINE BOT is running!")
 
 def run_dummy_server():
     port = int(os.environ.get("PORT", 8080))
@@ -64,11 +64,11 @@ threading.Thread(target=keep_alive, daemon=True).start()
 bot = Bot(token=BOT_TOKEN)
 
 # ============================================================
-# 🧠 ULTIMATE PRO ENGINE (HTML এর 100% সঠিক)
+# 🧠 ULTIMATE PRO ENGINE - HTML এর JavaScript থেকে নেওয়া
 # ============================================================
 class UltimateProEngine:
     def __init__(self):
-        # HTML থেকে নেওয়া মেমরি
+        # HTML এর memory system
         self.loss_streak = 0
         self.total_predictions = 0
         self.correct_predictions = 0
@@ -111,8 +111,7 @@ class UltimateProEngine:
         
     def predict(self, data):
         """
-        ULTIMATE PRO ENGINE - HTML থেকে 100% সঠিক
-        HTML Ultimate Pro Engine Algorithm
+        HTML Ultimate Pro Engine এর JavaScript থেকে সরাসরি নেওয়া
         """
         if len(data) < 8:
             return {
@@ -123,14 +122,16 @@ class UltimateProEngine:
                 'accuracy': 0
             }
         
-        # ============================================================
-        # ULTIMATE PRO ENGINE VOTING SYSTEM
-        # ============================================================
+        # HTML এর voting system
         votes = {'BIG': 0, 'SMALL': 0}
         weights = self.adaptive_weights
         
         types = [d['side'] for d in data[:5]]
         numbers = [d['number'] for d in data[:15]]
+        
+        # ============================================================
+        # HTML JavaScript থেকে 1:1 নেওয়া
+        # ============================================================
         
         # 1. MIRROR PATTERN
         if len(types) >= 5 and types[0] == types[4] and types[1] == types[3]:
@@ -166,7 +167,7 @@ class UltimateProEngine:
             score += (1 if data[i]['number'] >= 5 else -1) * weight
         votes['BIG' if score > 0 else 'SMALL'] += 2
         
-        # 5. GAP ANALYSIS (Missing Numbers)
+        # 5. GAP ANALYSIS
         all_nums = set(range(10))
         present = set(numbers[:15])
         missing = list(all_nums - present)
@@ -187,12 +188,12 @@ class UltimateProEngine:
                 votes['SMALL' if data[0]['side'] == 'BIG' else 'BIG'] += 3
         
         # ============================================================
-        # FINAL DECISION
+        # HTML এর FINAL DECISION
         # ============================================================
         final_pred = 'BIG' if votes['BIG'] >= votes['SMALL'] else 'SMALL'
         diff = abs(votes['BIG'] - votes['SMALL'])
         
-        # CONFIDENCE
+        # Confidence - HTML এর exact formula
         if diff >= 5:
             confidence = 95
         elif diff >= 4:
@@ -210,9 +211,7 @@ class UltimateProEngine:
             confidence += 5
         confidence = min(95, confidence)
         
-        # ============================================================
-        # NUMBER SELECTION (HTML এর মতো)
-        # ============================================================
+        # Number Selection - HTML এর exact
         if final_pred == 'BIG':
             freq = {}
             for n in numbers[:15]:
@@ -232,9 +231,7 @@ class UltimateProEngine:
             else:
                 num = random.choice([0, 1, 2, 3, 4])
         
-        # ============================================================
-        # REASON (HTML Ultimate Pro Engine Style)
-        # ============================================================
+        # HTML এর ULTIMATE-PRO-ADAPTIVE reason
         if diff >= 5:
             reason = "🔥 STRONG SIGNAL"
         elif diff >= 4:
@@ -309,7 +306,7 @@ async def send_hourly_report():
             f"📉 *WORST LOSS STREAK:* `{hourly_stats['max_loss_streak']}x`\n"
             f"🔥 *CURRENT STREAK:* `{hourly_stats['current_streak']}x {hourly_stats['streak_type']}`\n"
             f"━━━━━━━━━━━━━━━━━━━━\n"
-            f"💎 ULTIMATE PRO AI"
+            f"💎 ULTIMATE PRO ENGINE"
         )
         
         try:
@@ -353,7 +350,7 @@ async def prediction_bot():
 
     print("🔥 ULTIMATE PRO ENGINE BOT STARTED...")
     print("━━━━━━━━━━━━━━━━━━━━")
-    print("🧠 ENGINE: ULTIMATE PRO ENGINE (100% HTML)")
+    print("🧠 ENGINE: ULTIMATE PRO ENGINE (HTML JS)")
     print("📡 MODE: 1 MINUTE")
     print("✅ RESULT → PREDICTION")
     print("📊 HOURLY REPORT: ENABLED")
@@ -520,7 +517,7 @@ if __name__ == '__main__':
     print(f"🤖 TOKEN: {BOT_TOKEN[:10]}...")
     print(f"📡 CHAT: {CHAT_ID}")
     print("━━━━━━━━━━━━━━━━━━━━")
-    print("🧠 ENGINE: ULTIMATE PRO ENGINE (100% HTML)")
+    print("🧠 ENGINE: ULTIMATE PRO ENGINE (HTML JS)")
     print("📡 MODE: 1 MINUTE")
     print("📊 HOURLY REPORT: ENABLED")
     print("━━━━━━━━━━━━━━━━━━━━")
