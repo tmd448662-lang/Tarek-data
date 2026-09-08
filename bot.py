@@ -3,7 +3,7 @@
 
 """
 🔥 ULTIMATE PRO AI BOT — Wingo 1M Predictor
-🧠 ENGINE: ULTIMATE PRO AI (100% HTML MATCH)
+🧠 ENGINE: ULTIMATE PRO ENGINE (100% HTML)
 📡 MODE: 1 MINUTE
 ✅ FIRST RESULT → THEN PREDICTION
 📊 HOURLY REPORT INCLUDED
@@ -64,10 +64,11 @@ threading.Thread(target=keep_alive, daemon=True).start()
 bot = Bot(token=BOT_TOKEN)
 
 # ============================================================
-# 🧠 ULTIMATE PRO AI - HTML এর 100% সঠিক অ্যালগরিদম
+# 🧠 ULTIMATE PRO ENGINE (HTML এর 100% সঠিক)
 # ============================================================
-class UltimateProAI:
+class UltimateProEngine:
     def __init__(self):
+        # HTML থেকে নেওয়া মেমরি
         self.loss_streak = 0
         self.total_predictions = 0
         self.correct_predictions = 0
@@ -110,8 +111,8 @@ class UltimateProAI:
         
     def predict(self, data):
         """
-        ULTIMATE PRO AI - 100% HTML মিল
-        HTML এ যা দেখায়: ULTIMATE PRO ENGINE: SMALL #0 78%
+        ULTIMATE PRO ENGINE - HTML থেকে 100% সঠিক
+        HTML Ultimate Pro Engine Algorithm
         """
         if len(data) < 8:
             return {
@@ -122,22 +123,21 @@ class UltimateProAI:
                 'accuracy': 0
             }
         
+        # ============================================================
+        # ULTIMATE PRO ENGINE VOTING SYSTEM
+        # ============================================================
         votes = {'BIG': 0, 'SMALL': 0}
         weights = self.adaptive_weights
         
         types = [d['side'] for d in data[:5]]
         numbers = [d['number'] for d in data[:15]]
         
-        # ============================================================
         # 1. MIRROR PATTERN
-        # ============================================================
         if len(types) >= 5 and types[0] == types[4] and types[1] == types[3]:
             pred = 'SMALL' if types[0] == 'BIG' else 'BIG'
             votes[pred] += weights.get('mirror', 3) * 1.5
         
-        # ============================================================
         # 2. STREAK ANALYSIS
-        # ============================================================
         streak = 1
         for i in range(1, len(types)):
             if types[i] == types[i-1]:
@@ -149,9 +149,7 @@ class UltimateProAI:
             pred = 'SMALL' if types[0] == 'BIG' else 'BIG'
             votes[pred] += 4 if streak >= 6 else 2
         
-        # ============================================================
         # 3. ALTERNATING PATTERN
-        # ============================================================
         if len(data) >= 5:
             last_5 = [d['side'] for d in data[:5]]
             is_alt = all(last_5[i] != last_5[i-1] for i in range(1, 5))
@@ -161,18 +159,14 @@ class UltimateProAI:
             if last_5[0] == last_5[1] and last_5[3] == last_5[4] and last_5[0] == last_5[4]:
                 votes[last_5[0]] += 3
         
-        # ============================================================
         # 4. TREND SCORE
-        # ============================================================
         score = 0
         for i in range(min(len(data), 8)):
             weight = [8, 5, 3, 2, 1, 1, 0, 0][i] if i < 8 else 0
             score += (1 if data[i]['number'] >= 5 else -1) * weight
         votes['BIG' if score > 0 else 'SMALL'] += 2
         
-        # ============================================================
-        # 5. MISSING NUMBERS (GAP)
-        # ============================================================
+        # 5. GAP ANALYSIS (Missing Numbers)
         all_nums = set(range(10))
         present = set(numbers[:15])
         missing = list(all_nums - present)
@@ -180,17 +174,13 @@ class UltimateProAI:
             num = missing[0]
             votes['BIG' if num >= 5 else 'SMALL'] += 1.5
         
-        # ============================================================
         # 6. ACCURACY ADJUSTMENT
-        # ============================================================
         accuracy = self.correct_predictions / max(self.total_predictions, 1)
         if accuracy < 0.5:
             pred = 'SMALL' if self.last_prediction == 'BIG' else 'BIG'
             votes[pred] += 2
         
-        # ============================================================
         # 7. LOSS STREAK RECOVERY
-        # ============================================================
         if len(self.last_10_accuracy) >= 5:
             last_5_loss = sum(1 for x in self.last_10_accuracy[-5:] if not x)
             if last_5_loss >= 3:
@@ -221,32 +211,30 @@ class UltimateProAI:
         confidence = min(95, confidence)
         
         # ============================================================
-        # NUMBER SELECTION - 100% HTML MATCH
+        # NUMBER SELECTION (HTML এর মতো)
         # ============================================================
         if final_pred == 'BIG':
-            # BIG numbers: 5,6,7,8,9
             freq = {}
             for n in numbers[:15]:
                 if n >= 5:
                     freq[n] = freq.get(n, 0) + 1
             if freq:
-                # সবচেয়ে কম ব্যবহৃত BIG নাম্বার
                 num = min(freq, key=freq.get)
             else:
                 num = random.choice([5, 6, 7, 8, 9])
         else:
-            # SMALL numbers: 0,1,2,3,4
             freq = {}
             for n in numbers[:15]:
                 if n < 5:
                     freq[n] = freq.get(n, 0) + 1
             if freq:
-                # সবচেয়ে কম ব্যবহৃত SMALL নাম্বার
                 num = min(freq, key=freq.get)
             else:
                 num = random.choice([0, 1, 2, 3, 4])
         
-        # REASON
+        # ============================================================
+        # REASON (HTML Ultimate Pro Engine Style)
+        # ============================================================
         if diff >= 5:
             reason = "🔥 STRONG SIGNAL"
         elif diff >= 4:
@@ -274,7 +262,7 @@ last_period = None
 prediction_sent = False
 result_sent = False
 current_prediction = None
-engine = UltimateProAI()
+engine = UltimateProEngine()
 wins = 0
 losses = 0
 
@@ -363,9 +351,9 @@ async def prediction_bot():
     global prediction_sent, result_sent, current_prediction
     global wins, losses, hourly_stats, hourly_report_sent
 
-    print("🔥 ULTIMATE PRO AI BOT STARTED...")
+    print("🔥 ULTIMATE PRO ENGINE BOT STARTED...")
     print("━━━━━━━━━━━━━━━━━━━━")
-    print("🧠 ENGINE: ULTIMATE PRO AI")
+    print("🧠 ENGINE: ULTIMATE PRO ENGINE (100% HTML)")
     print("📡 MODE: 1 MINUTE")
     print("✅ RESULT → PREDICTION")
     print("📊 HOURLY REPORT: ENABLED")
@@ -375,9 +363,9 @@ async def prediction_bot():
         await bot.send_message(
             chat_id=CHAT_ID,
             text=(
-                "🔥 *ULTIMATE PRO AI BOT* 🔥\n"
+                "🔥 *ULTIMATE PRO ENGINE* 🔥\n"
                 "━━━━━━━━━━━━━━━━━━━━\n"
-                "🧠 ENGINE: ULTIMATE PRO AI\n"
+                "🧠 ENGINE: ULTIMATE PRO ENGINE\n"
                 "📡 MODE: 1 MINUTE\n"
                 "✅ RESULT FIRST → THEN PREDICTION\n"
                 "📊 HOURLY REPORT: ENABLED\n"
@@ -469,7 +457,7 @@ async def prediction_bot():
                         f"🔥 STREAK: {engine.loss_streak:+d}\n"
                         f"📈 ACCURACY: {accuracy:.1f}%\n"
                         f"━━━━━━━━━━━━━━━━━━━━\n"
-                        f"💎 ULTIMATE PRO AI"
+                        f"💎 ULTIMATE PRO ENGINE"
                     )
 
                     try:
@@ -510,7 +498,7 @@ async def prediction_bot():
                     f"📈 AI ACCURACY: `{pred['accuracy']}%`\n"
                     f"━━━━━━━━━━━━━━━━━━━━\n"
                     f"⏳ RESULT AWAITING...\n"
-                    f"💎 ULTIMATE PRO AI"
+                    f"💎 ULTIMATE PRO ENGINE"
                 )
 
                 try:
@@ -527,12 +515,12 @@ async def prediction_bot():
             await asyncio.sleep(5)
 
 if __name__ == '__main__':
-    print("🔥 ULTIMATE PRO AI BOT")
+    print("🔥 ULTIMATE PRO ENGINE BOT")
     print("━━━━━━━━━━━━━━━━━━━━")
     print(f"🤖 TOKEN: {BOT_TOKEN[:10]}...")
     print(f"📡 CHAT: {CHAT_ID}")
     print("━━━━━━━━━━━━━━━━━━━━")
-    print("🧠 ENGINE: ULTIMATE PRO AI")
+    print("🧠 ENGINE: ULTIMATE PRO ENGINE (100% HTML)")
     print("📡 MODE: 1 MINUTE")
     print("📊 HOURLY REPORT: ENABLED")
     print("━━━━━━━━━━━━━━━━━━━━")
