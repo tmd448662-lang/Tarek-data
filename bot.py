@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 
 """
-🔥 ULTIMATE PRO AI BOT — Wingo 1M Predictor
-🧠 SINGLE ENGINE: ULTIMATE PRO AI
+🔥 ULTIMATE PRO AI HACK BOT — Wingo 1M Predictor
+🧠 ENGINE: ULTIMATE PRO AI (PURE HTML ALGORITHM)
 📡 MODE: 1 MINUTE
 ✅ FIRST RESULT → THEN PREDICTION
 📊 HOURLY REPORT INCLUDED
@@ -64,7 +64,7 @@ threading.Thread(target=keep_alive, daemon=True).start()
 bot = Bot(token=BOT_TOKEN)
 
 # ============================================================
-# 🧠 ULTIMATE PRO AI MEMORY
+# 🧠 ULTIMATE PRO AI MEMORY (HTML থেকে নেওয়া)
 # ============================================================
 class UltimateMemory:
     def __init__(self):
@@ -81,7 +81,6 @@ class UltimateMemory:
             'trend': 2
         }
         self.period_counter = 0
-        self.last_hour_report = time.time()
         
     def update(self, is_win, prediction):
         self.total_predictions += 1
@@ -116,13 +115,16 @@ class UltimateMemory:
         return (self.correct_predictions / self.total_predictions) * 100
 
 # ============================================================
-# 🧠 ULTIMATE PRO AI ENGINE
+# 🧠 ULTIMATE PRO AI ENGINE (HTML থেকে সরাসরি নেওয়া)
 # ============================================================
 class UltimateProAI:
     def __init__(self):
         self.memory = UltimateMemory()
         
     def predict(self, data):
+        """
+        ULTIMATE PRO AI - HTML থেকে সরাসরি অ্যালগরিদম
+        """
         if len(data) < 8:
             return {
                 'prediction': 'BIG',
@@ -138,12 +140,16 @@ class UltimateProAI:
         types = [d['side'] for d in data[:5]]
         numbers = [d['number'] for d in data[:15]]
         
+        # ============================================================
         # 1. MIRROR PATTERN
+        # ============================================================
         if len(types) >= 5 and types[0] == types[4] and types[1] == types[3]:
             pred = 'SMALL' if types[0] == 'BIG' else 'BIG'
             votes[pred] += weights.get('mirror', 3) * 1.5
         
+        # ============================================================
         # 2. STREAK ANALYSIS
+        # ============================================================
         streak = 1
         for i in range(1, len(types)):
             if types[i] == types[i-1]:
@@ -155,7 +161,9 @@ class UltimateProAI:
             pred = 'SMALL' if types[0] == 'BIG' else 'BIG'
             votes[pred] += 4 if streak >= 6 else 2
         
+        # ============================================================
         # 3. ALTERNATING PATTERN
+        # ============================================================
         if len(data) >= 5:
             last_5 = [d['side'] for d in data[:5]]
             is_alt = all(last_5[i] != last_5[i-1] for i in range(1, 5))
@@ -165,14 +173,18 @@ class UltimateProAI:
             if last_5[0] == last_5[1] and last_5[3] == last_5[4] and last_5[0] == last_5[4]:
                 votes[last_5[0]] += 3
         
+        # ============================================================
         # 4. TREND SCORE
+        # ============================================================
         score = 0
         for i in range(min(len(data), 8)):
             weight = [8, 5, 3, 2, 1, 1, 0, 0][i] if i < 8 else 0
             score += (1 if data[i]['number'] >= 5 else -1) * weight
         votes['BIG' if score > 0 else 'SMALL'] += 2
         
-        # 5. MISSING NUMBERS
+        # ============================================================
+        # 5. MISSING NUMBERS (GAP)
+        # ============================================================
         all_nums = set(range(10))
         present = set(numbers[:15])
         missing = list(all_nums - present)
@@ -180,21 +192,29 @@ class UltimateProAI:
             num = missing[0]
             votes['BIG' if num >= 5 else 'SMALL'] += 1.5
         
+        # ============================================================
         # 6. ACCURACY ADJUSTMENT
+        # ============================================================
         accuracy = self.memory.correct_predictions / max(self.memory.total_predictions, 1)
         if accuracy < 0.5:
             pred = 'SMALL' if self.memory.last_prediction == 'BIG' else 'BIG'
             votes[pred] += 2
         
+        # ============================================================
         # 7. LOSS STREAK RECOVERY
+        # ============================================================
         if len(self.memory.last_10_accuracy) >= 5:
             last_5_loss = sum(1 for x in self.memory.last_10_accuracy[-5:] if not x)
             if last_5_loss >= 3:
                 votes['SMALL' if data[0]['side'] == 'BIG' else 'BIG'] += 3
         
+        # ============================================================
+        # FINAL DECISION
+        # ============================================================
         final_pred = 'BIG' if votes['BIG'] >= votes['SMALL'] else 'SMALL'
         diff = abs(votes['BIG'] - votes['SMALL'])
         
+        # CONFIDENCE
         if diff >= 5:
             confidence = 95
         elif diff >= 4:
@@ -212,7 +232,7 @@ class UltimateProAI:
             confidence += 5
         confidence = min(95, confidence)
         
-        # নাম্বার সিলেকশন
+        # NUMBER SELECTION
         if final_pred == 'BIG':
             freq = {}
             for n in numbers[:15]:
@@ -232,25 +252,25 @@ class UltimateProAI:
             else:
                 num = random.choice([0, 1, 2, 3, 4])
         
+        # REASON
+        if diff >= 5:
+            reason = "🔥 STRONG SIGNAL"
+        elif diff >= 4:
+            reason = "📊 HIGH CONFIDENCE"
+        elif diff >= 3:
+            reason = "📈 MODERATE SIGNAL"
+        elif diff >= 2:
+            reason = "📉 WEAK SIGNAL"
+        else:
+            reason = "🔮 NEUTRAL - FOLLOWING TREND"
+        
         return {
             'prediction': final_pred,
             'number': num,
             'confidence': confidence,
-            'reason': self.get_reason(final_pred, diff, accuracy),
+            'reason': reason,
             'accuracy': round(accuracy * 100, 1)
         }
-    
-    def get_reason(self, pred, diff, accuracy):
-        if diff >= 5:
-            return "🔥 STRONG SIGNAL"
-        elif diff >= 4:
-            return "📊 HIGH CONFIDENCE"
-        elif diff >= 3:
-            return "📈 MODERATE SIGNAL"
-        elif diff >= 2:
-            return "📉 WEAK SIGNAL"
-        else:
-            return "🔮 NEUTRAL - FOLLOWING TREND"
 
 # ============================================================
 # গ্লোবাল ভেরিয়েবল
@@ -263,8 +283,6 @@ current_prediction = None
 engine = UltimateProAI()
 wins = 0
 losses = 0
-prediction_pending = False
-pending_period = None
 
 # Hourly Stats
 hourly_stats = {
@@ -350,7 +368,6 @@ async def prediction_bot():
     global history_data, last_period
     global prediction_sent, result_sent, current_prediction
     global wins, losses, hourly_stats, hourly_report_sent
-    global prediction_pending, pending_period
 
     print("🔥 ULTIMATE PRO AI BOT STARTED...")
     print("━━━━━━━━━━━━━━━━━━━━")
@@ -405,10 +422,9 @@ async def prediction_bot():
             print(f"📡 Period: {latest_issue} | Result: {actual_num} ({actual_type})")
 
             # ============================================================
-            # 🔥 RESULT CHECK - যখন নতুন পিরিয়ড আসে
+            # 🔥 RESULT CHECK
             # ============================================================
             if last_period is not None and last_period != latest_issue:
-                # রেজাল্ট পাঠান
                 if current_prediction is not None and not result_sent:
                     is_win = (current_prediction['prediction'] == actual_type)
                     is_jackpot = (actual_num == current_prediction['number'])
@@ -472,18 +488,17 @@ async def prediction_bot():
                     
                     await send_hourly_report()
                     
-                    # রিসেট করুন - নতুন প্রেডিকশনের জন্য
+                    # রিসেট
                     prediction_sent = False
                     current_prediction = None
                     result_sent = False
 
             # ============================================================
-            # 🔥 NEW PREDICTION - শুধু যখন প্রেডিকশন পাঠানো হয়নি
+            # 🔥 NEW PREDICTION
             # ============================================================
             next_period = str(int(latest_issue) + 1)
             
             if last_period is None or (last_period != latest_issue and not prediction_sent):
-                # নতুন প্রেডিকশন
                 pred = engine.predict(history_data)
                 current_prediction = pred
                 prediction_sent = True
