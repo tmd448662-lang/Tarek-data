@@ -29,7 +29,6 @@ LOGIC = {
 }
 
 # ==================== ডেটা ───
-history = []
 total_wins = 0
 total_losses = 0
 current_streak = 0
@@ -37,6 +36,7 @@ best_win_streak = 0
 worst_loss_streak = 0
 current_period = None
 last_result = None
+last_prediction = None
 
 # ==================== ওয়েব সার্ভার ───
 class DummyServer(BaseHTTPRequestHandler):
@@ -87,17 +87,20 @@ def send_telegram_message(message):
             "text": message,
             "parse_mode": "Markdown"
         }
-        requests.post(url, json=payload, timeout=5)
+        response = requests.post(url, json=payload, timeout=5)
+        return response.status_code == 200
     except Exception as e:
         print(f"Send error: {e}")
+        return False
 
 # ==================== মেইন লুপ ───
 def main():
-    global history, total_wins, total_losses, current_streak, best_win_streak, worst_loss_streak, current_period, last_result
+    global total_wins, total_losses, current_streak, best_win_streak, worst_loss_streak, current_period, last_result, last_prediction
     
     print("🤖 Bot Started!")
     print(f"📌 Bot Token: {BOT_TOKEN[:10]}...")
-    print("⚡ Waiting...")
+    print(f"📌 Admin ID: {ADMIN_ID}")
+    print("⚡ Waiting for signals...")
     
     # Start message
     send_telegram_message("🤖 *BDT BD SHANTO 2K Bot Started!*\n⚡ Waiting for signals...")
@@ -123,8 +126,9 @@ def main():
 """
                     send_telegram_message(pred_msg)
                     
-                    if last_result:
-                        win = last_result.get("pred") == pred["s"]
+                    # Check result if we have previous prediction
+                    if last_result and last_prediction:
+                        win = last_prediction == pred["s"]
                         
                         if win:
                             total_wins += 1
@@ -140,14 +144,12 @@ def main():
                         total = total_wins + total_losses
                         win_rate = (total_wins / total * 100) if total > 0 else 0
                         
-                        actual = {"n": last_result.get("number"), "s": last_result.get("pred")}
-                        
                         result_msg = f"""
 🎯 *RESULT UPDATE*
 ━━━━━━━━━━━━━━━━━━━━
 🆔 PERIOD: #{period[-5:]}
-🎯 PREDICTED: {last_result['pred']} → {last_result['number']}
-🎰 ACTUAL: {actual['n']} ({actual['s']})
+🎯 PREDICTED: {last_prediction}
+🎰 ACTUAL: {pred['s']}
 📌 RESULT: {'✅ WIN' if win else '❌ LOSS'}
 ━━━━━━━━━━━━━━━━━━━━
 📊 WIN RATE: {win_rate:.1f}% ({total_wins}W/{total_losses}L)
@@ -158,6 +160,7 @@ def main():
                         send_telegram_message(result_msg)
                     
                     last_result = {"period": period, "pred": pred["s"], "number": pred["n"]}
+                    last_prediction = pred["s"]
             
             time.sleep(5)
             
