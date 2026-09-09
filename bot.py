@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-🔥 GURU 30s WINGO BIG/SMALL বট - ফিক্সড ভার্সন (জ্যাকপট বাদ)
+🔥 GURU 30s WINGO BIG/SMALL বট - ফিক্সড ভার্সন
 🤖 @rakiiibahmed
 """
 
@@ -32,8 +32,13 @@ except ImportError:
 BOT_TOKEN = "8386058038:AAEwayH-C4AUr7L_tx6Ecz__xpIXnrekJw0"
 CHAT_ID = "5012028880"
 
-# ✅ সঠিক API URL (ar-lottery01.com)
-API_URL = "https://draw.ar-lottery01.com/WinGo/WinGo_30s/GetHistoryIssuePage.json"
+# ✅ একাধিক API URL (কোনটা কাজ করবে চেষ্টা করবে)
+API_URLS = [
+    "https://draw.ar-lottery01.com/WinGo/WinGo_30s/GetHistoryIssuePage.json",
+    "https://api.ar-lottery01.com/WinGo/WinGo_30s/GetHistoryIssuePage.json",
+    "https://draw.art-lottery01.com/WinGo/WinGo_30s/GetHistoryIssuePage.json",
+    "https://api.art-lottery01.com/WinGo/WinGo_30s/GetHistoryIssuePage.json",
+]
 
 # ==================== 🌐 ওয়েব সার্ভার ====================
 class DummyServer(BaseHTTPRequestHandler):
@@ -100,35 +105,37 @@ def guru_algorithm(period_number):
         logger.error(f"অ্যালগরিদম এরর: {e}")
         return {'prediction': 'BIG', 'number': 5, 'digit_sum': 0, 'confidence': 50}
 
-# ==================== 📡 API ফেচ ====================
+# ==================== 📡 API ফেচ (মাল্টিপল URL) ====================
 def fetch_api_data():
-    try:
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'application/json, text/plain, */*',
-            'Accept-Language': 'en-US,en;q=0.9',
-            'Referer': 'https://www.google.com/',
-            'Origin': 'https://www.google.com',
-            'Connection': 'keep-alive',
-            'Cache-Control': 'no-cache',
-        }
-        
-        url = API_URL + "?t=" + str(int(time.time() * 1000))
-        res = requests.get(url, headers=headers, timeout=10)
-        
-        if res.status_code == 200:
-            data = res.json()
-            list_data = data.get("data", {}).get("list", [])
-            if list_data and len(list_data) > 0:
-                logger.info(f"✅ API থেকে {len(list_data)}টি ডেটা পাওয়া গেছে")
-                return list_data
-            else:
-                logger.warning("⚠️ API থেকে কোনো ডেটা পাওয়া যায়নি")
-        else:
-            logger.warning(f"⚠️ HTTP এরর: {res.status_code}")
-    except Exception as e:
-        logger.error(f"❌ API ফেচ এরর: {e}")
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'application/json, text/plain, */*',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Referer': 'https://www.google.com/',
+        'Origin': 'https://www.google.com',
+        'Connection': 'keep-alive',
+        'Cache-Control': 'no-cache',
+    }
     
+    for api_url in API_URLS:
+        try:
+            url = api_url + "?t=" + str(int(time.time() * 1000))
+            res = requests.get(url, headers=headers, timeout=10)
+            
+            if res.status_code == 200:
+                data = res.json()
+                list_data = data.get("data", {}).get("list", [])
+                if list_data and len(list_data) > 0:
+                    logger.info(f"✅ API সফল: {api_url}")
+                    return list_data
+                else:
+                    logger.warning(f"⚠️ {api_url} → ডেটা খালি")
+            else:
+                logger.warning(f"⚠️ {api_url} → HTTP {res.status_code}")
+        except Exception as e:
+            logger.warning(f"⚠️ {api_url} → এরর: {e}")
+    
+    logger.error("❌ সব API ব্যর্থ!")
     return []
 
 # ==================== 📤 মেসেজ সেন্ড ====================
@@ -216,7 +223,7 @@ async def prediction_bot():
                 logger.warning("⚠️ ডেটা নেই, রিট্রাই...")
                 continue
 
-            # ✅ লেটেস্ট পিরিয়ড
+            # ✅ লেটেস্ট পিরিয়ড (ইন্ডেক্স 0)
             latest = raw_list[0]
             latest_issue = str(latest.get('issueNumber', ''))
             
@@ -230,7 +237,7 @@ async def prediction_bot():
             logger.info(f"📡 লেটেস্ট পিরিয়ড: {latest_issue}, নাম্বার: {actual_num} ({actual_type})")
 
             # ============================================================
-            # 🔥 STEP 1: রেজাল্ট চেক (জ্যাকপট বাদ)
+            # 🔥 STEP 1: রেজাল্ট চেক
             # ============================================================
             if last_predicted_period == latest_issue and last_predicted_signal is not None and not last_result_sent:
                 is_win = (last_predicted_signal == actual_type)
