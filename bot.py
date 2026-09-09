@@ -118,7 +118,7 @@ def main():
     
     print("🤖 Bot Started!")
     print("⚡ Order: RESULT → PREDICTION")
-    print("🧠 2 Algorithms: SHANTO + RGB")
+    print("🧠 2 Algorithms: SHANTO + RGB (ANSH BOSS)")
     print("📊 Match = PREDICTION | No Match = SKIP")
     
     send_telegram_message("🤖 *BDT BD SHANTO 2K Bot Started!*\n🧠 SHANTO + RGB\n📊 2 Match System")
