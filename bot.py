@@ -32,7 +32,7 @@ loss_streak = 0
 best_win_streak = 0
 worst_loss_streak = 0
 current_streak = 0
-current_streak_type = "WIN"  # WIN or LOSS
+current_streak_type = "WIN"
 hourly_stats = {"win": 0, "loss": 0, "total": 0}
 last_hour = datetime.now().hour
 current_period = None
@@ -74,7 +74,51 @@ def get_prediction(period):
     last_digit = int(str(period)[-1])
     return LOGIC.get(last_digit)
 
-# ─── /start কমান্ড ───
+# ─── রেজাল্ট ফরম্যাট ───
+def format_result_message(period, pred, actual, win):
+    global total_wins, total_losses, win_streak, loss_streak, best_win_streak, worst_loss_streak, current_streak, current_streak_type, level
+    
+    if win:
+        total_wins += 1
+        win_streak += 1
+        loss_streak = 0
+        if win_streak > best_win_streak:
+            best_win_streak = win_streak
+        current_streak = win_streak
+        current_streak_type = "WIN"
+    else:
+        total_losses += 1
+        loss_streak += 1
+        win_streak = 0
+        if loss_streak > worst_loss_streak:
+            worst_loss_streak = loss_streak
+        current_streak = loss_streak
+        current_streak_type = "LOSS"
+    
+    level = (total_wins // 100) + 1
+    result_emoji = "✅ WIN" if win else "❌ LOSS"
+    streak_emoji = "🔥" if win else "📉"
+    
+    total = total_wins + total_losses
+    win_rate = (total_wins / total * 100) if total > 0 else 0
+    
+    message = f"""
+🎯 **RESULT UPDATE** 
+━━━━━━━━━━━━━━━━━━━━
+🆔 PERIOD: #{period[-5:]}
+🎯 PREDICTED: {pred['s']} → {pred['n']}
+🎰 ACTUAL: {actual['n']} ({actual['s']})
+📌 RESULT: {result_emoji}
+━━━━━━━━━━━━━━━━━━━━
+📊 WIN RATE: {win_rate:.1f}% ({total_wins}W/{total_losses}L)
+📉 STREAK: {streak_emoji} {current_streak}x {current_streak_type}
+👑 LEVEL: {level} ({level}x)
+━━━━━━━━━━━━━━━━━━━━
+⚡ BDT BD SHANTO 2K
+    """
+    return message
+
+# ─── /start ───
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     welcome_text = f"""
@@ -101,18 +145,14 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text(welcome_text, reply_markup=reply_markup, parse_mode="Markdown")
 
-# ─── /prediction কমান্ড ───
+# ─── /prediction ───
 async def prediction(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    global current_period, last_result
-    
     period = await fetch_period()
     if not period:
         await update.message.reply_text("❌ API Error! Please try again.")
         return
     
-    current_period = period
     pred = get_prediction(period)
-    
     if not pred:
         await update.message.reply_text("❌ Prediction Error!")
         return
@@ -140,57 +180,9 @@ async def prediction(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text(result_text, reply_markup=reply_markup, parse_mode="Markdown")
 
-# ─── রেজাল্ট আপডেট মেসেজ ───
-def format_result_message(period, pred, actual, win):
-    global total_wins, total_losses, win_streak, loss_streak, best_win_streak, worst_loss_streak, current_streak, current_streak_type, level
-    
-    # স্ট্রিক আপডেট
-    if win:
-        total_wins += 1
-        win_streak += 1
-        loss_streak = 0
-        if win_streak > best_win_streak:
-            best_win_streak = win_streak
-        current_streak = win_streak
-        current_streak_type = "WIN"
-    else:
-        total_losses += 1
-        loss_streak += 1
-        win_streak = 0
-        if loss_streak > worst_loss_streak:
-            worst_loss_streak = loss_streak
-        current_streak = loss_streak
-        current_streak_type = "LOSS"
-    
-    # লেভেল আপডেট (প্রতি ১০০ WIN এ লেভেল বাড়ে)
-    level = (total_wins // 100) + 1
-    
-    # WIN/LOSS ইমোজি
-    result_emoji = "✅ WIN" if win else "❌ LOSS"
-    streak_emoji = "🔥" if win else "📉"
-    
-    total = total_wins + total_losses
-    win_rate = (total_wins / total * 100) if total > 0 else 0
-    
-    message = f"""
-🎯 **RESULT UPDATE** 
-━━━━━━━━━━━━━━━━━━━━
-🆔 PERIOD: #{period[-5:]}
-🎯 PREDICTED: {pred['s']} → {pred['n']}
-🎰 ACTUAL: {actual['n']} ({actual['s']})
-📌 RESULT: {result_emoji}
-━━━━━━━━━━━━━━━━━━━━
-📊 WIN RATE: {win_rate:.1f}% ({total_wins}W/{total_losses}L)
-📉 STREAK: {streak_emoji} {current_streak}x {current_streak_type}
-👑 LEVEL: {level} ({level}x)
-━━━━━━━━━━━━━━━━━━━━
-⚡ BDT BD SHANTO 2K
-    """
-    return message
-
-# ─── /status কমান্ড ───
+# ─── /status ───
 async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    global total_wins, total_losses, win_streak, loss_streak, best_win_streak, worst_loss_streak, current_streak, current_streak_type, level
+    global total_wins, total_losses, best_win_streak, worst_loss_streak, current_streak, current_streak_type, level
     
     period = await fetch_period()
     if not period:
@@ -229,7 +221,7 @@ async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text(status_text, reply_markup=reply_markup, parse_mode="Markdown")
 
-# ─── /history কমান্ড ───
+# ─── /history ───
 async def history_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global history
     
@@ -257,12 +249,11 @@ async def history_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text(text, reply_markup=reply_markup, parse_mode="Markdown")
 
-# ─── /hourly কমান্ড ───
+# ─── /hourly ───
 async def hourly(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global history, hourly_stats, best_win_streak, worst_loss_streak
     
     now = datetime.now()
-    current_hour = now.hour
     hour_start = now.replace(minute=0, second=0, microsecond=0)
     
     hourly_results = [h for h in history if h.get("timestamp", 0) >= hour_start.timestamp()]
@@ -272,7 +263,6 @@ async def hourly(update: Update, context: ContextTypes.DEFAULT_TYPE):
     losses = total - wins
     win_rate = (wins / total * 100) if total > 0 else 0
     
-    # স্ট্রিক ক্যালকুলেশন
     streak = 0
     streak_type = "WIN"
     temp_streak = 0
@@ -322,7 +312,7 @@ async def hourly(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text(message, reply_markup=reply_markup, parse_mode="Markdown")
 
-# ─── /help কমান্ড ───
+# ─── /help ───
 async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     help_text = """
 ❓ **HELP - WINGO PREDICTION BOT**
@@ -348,7 +338,7 @@ Play responsibly.
     """
     await update.message.reply_text(help_text, parse_mode="Markdown")
 
-# ─── Callback Query Handler ───
+# ─── Callback Handler ───
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     data = query.data
@@ -362,7 +352,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == "hourly":
         await hourly(update, context)
 
-# ─── Auto Update Function ───
+# ─── Auto Update ───
 async def auto_update():
     global history, hourly_stats, last_hour, current_period, last_result, total_wins, total_losses
     
@@ -377,7 +367,6 @@ async def auto_update():
                     if last_result:
                         win = last_result.get("pred") == pred["s"]
                         
-                        # রেজাল্ট সেভ করা
                         history.append({
                             "period": period,
                             "pred": pred["s"],
@@ -386,10 +375,7 @@ async def auto_update():
                             "timestamp": datetime.now().timestamp()
                         })
                         
-                        # Actual ডেটা তৈরি
                         actual = {"n": last_result.get("number"), "s": last_result.get("pred")}
-                        
-                        # রেজাল্ট মেসেজ তৈরি ও সেন্ড
                         result_msg = format_result_message(period, pred, actual, win)
                         
                         try:
@@ -401,7 +387,6 @@ async def auto_update():
                         except Exception as e:
                             logger.error(f"Send message error: {e}")
                         
-                        # Hourly স্ট্যাট আপডেট
                         if win:
                             hourly_stats["win"] += 1
                         else:
@@ -410,12 +395,10 @@ async def auto_update():
                     
                     last_result = {"period": period, "pred": pred["s"], "number": pred["n"]}
                     
-                    # প্রতি ঘন্টায় রিপোর্ট
                     current_hour = datetime.now().hour
                     if current_hour != last_hour:
                         last_hour = current_hour
                         
-                        # Hourly রিপোর্ট সেন্ড
                         try:
                             await application.bot.send_message(
                                 chat_id=ADMIN_ID,
@@ -442,7 +425,7 @@ async def auto_update():
         
         await asyncio.sleep(2)
 
-# ─── Main Function ───
+# ─── Main ───
 async def main():
     global application
     
