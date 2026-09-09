@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-🔥 GURU 30s WINGO BIG/SMALL বট - API ফিক্সড
+🔥 GURU 3M WINGO BIG/SMALL বট
 🤖 @rakiiibahmed
 """
 
@@ -32,13 +32,12 @@ except ImportError:
 BOT_TOKEN = "8386058038:AAEwayH-C4AUr7L_tx6Ecz__xpIXnrekJw0"
 CHAT_ID = "5012028880"
 
-# ✅ একাধিক API URL চেষ্টা করবে
+# ✅ 3 মিনিট উইঙ্গো API
 API_URLS = [
-    "https://draw.ar-lottery01.com/WinGo/WinGo_30s/GetHistoryIssuePage.json",
-    "https://api.ar-lottery01.com/WinGo/WinGo_30s/GetHistoryIssuePage.json",
-    "https://wingo.ar-lottery01.com/WinGo/WinGo_30s/GetHistoryIssuePage.json",
-    "https://api.art-lottery01.com/WinGo/WinGo_30s/GetHistoryIssuePage.json",
-    "https://draw.art-lottery01.com/WinGo/WinGo_30s/GetHistoryIssuePage.json",
+    "https://draw.ar-lottery01.com/WinGo/WinGo_3M/GetHistoryIssuePage.json",
+    "https://api.ar-lottery01.com/WinGo/WinGo_3M/GetHistoryIssuePage.json",
+    "https://draw.art-lottery01.com/WinGo/WinGo_3M/GetHistoryIssuePage.json",
+    "https://api.art-lottery01.com/WinGo/WinGo_3M/GetHistoryIssuePage.json",
 ]
 
 # ==================== 🌐 ওয়েব সার্ভার ====================
@@ -46,7 +45,7 @@ class DummyServer(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.end_headers()
-        self.wfile.write(b"GURU 30s WINGO BOT is running!")
+        self.wfile.write(b"GURU 3M WINGO BOT is running!")
     
     def do_HEAD(self):
         self.send_response(200)
@@ -81,7 +80,7 @@ prediction_sent_for_period = {}
 last_result_sent = False
 last_result_period = None
 
-# ==================== 🧠 অ্যালগরিদম ====================
+# ==================== 🧠 অ্যালগরিদম (3M) ====================
 def guru_algorithm(period_number):
     try:
         str_period = str(period_number)
@@ -167,7 +166,7 @@ async def send_hourly_report():
     win_rate = (total_wins / total_rounds * 100) if total_rounds > 0 else 0
     
     report_msg = (
-        f"📊 *আওয়ারলি রিপোর্ট - 30s Wingo*\n"
+        f"📊 *আওয়ারলি রিপোর্ট - 3M Wingo*\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
         f"🕐 *সময়:* {datetime.now().strftime('%I:%M %p')}\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
@@ -179,12 +178,12 @@ async def send_hourly_report():
         f"🔥 *সেরা স্ট্রিক:* `{best_streak}x`\n"
         f"📉 *বর্তমান স্ট্রিক:* `{current_streak:+d}`\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
-        f"⚡ *GURU 30s WINGO BOT*"
+        f"⚡ *GURU 3M WINGO BOT*"
     )
     
     await send_message(report_msg)
 
-# ==================== 🚀 মেইন লুপ ====================
+# ==================== 🚀 মেইন লুপ (3 মিনিট) ====================
 async def prediction_bot():
     global total_wins, total_losses, total_rounds
     global current_streak, best_streak
@@ -192,16 +191,16 @@ async def prediction_bot():
     global last_predicted_num, prediction_sent_for_period
     global last_result_sent, last_result_period
 
-    logger.info("🔥 GURU 30s WINGO BIG/SMALL বট স্টার্ট...")
+    logger.info("🔥 GURU 3M WINGO BIG/SMALL বট স্টার্ট...")
     logger.info(f"🤖 বট: @rakiiibahmed")
     logger.info(f"📡 চ্যাট আইডি: {CHAT_ID}")
     logger.info("━━━━━━━━━━━━━━━━━━━━")
 
     await send_message(
-        "🔥 *GURU 30s WINGO BIG/SMALL বট* 🔥\n"
+        "🔥 *GURU 3M WINGO BIG/SMALL বট* 🔥\n"
         "━━━━━━━━━━━━━━━━━━━━\n"
         "🤖 *বট:* @rakiiibahmed\n"
-        "📡 *মোড:* 30s Wingo BIG/SMALL\n"
+        "📡 *মোড:* 3M Wingo BIG/SMALL\n"
         "📊 *অর্ডার:* রেজাল্ট → প্রেডিকশন\n"
         "━━━━━━━━━━━━━━━━━━━━\n"
         "⏳ প্রথম সিগন্যালের জন্য অপেক্ষা..."
@@ -211,8 +210,9 @@ async def prediction_bot():
 
     while True:
         try:
-            current_sec = int(time.time()) % 30
-            sleep_time = 30 - current_sec + 3
+            # ✅ 3 মিনিটের জন্য অপেক্ষা (180 সেকেন্ড)
+            current_sec = int(time.time()) % 180
+            sleep_time = 180 - current_sec + 5
             await asyncio.sleep(sleep_time)
 
             logger.info("📡 API থেকে ডেটা নেওয়া হচ্ছে...")
@@ -266,7 +266,7 @@ async def prediction_bot():
                     f"🔥 *স্ট্রিক:* `{current_streak:+d}`\n"
                     f"📈 *লেভেল:* `{level}` ({level}x)\n"
                     f"━━━━━━━━━━━━━━━━━━━━\n"
-                    f"⚡ *GURU 30s WINGO BOT*"
+                    f"⚡ *GURU 3M WINGO BOT*"
                 )
 
                 await send_message(result_msg)
@@ -300,7 +300,7 @@ async def prediction_bot():
                     rec = "⚠️ লো কনফিডেন্স - ছোট বেট বা ওয়েট"
 
                 prediction_msg = (
-                    f"🔥 *GURU 30s WINGO BIG/SMALL* 🔥\n"
+                    f"🔥 *GURU 3M WINGO BIG/SMALL* 🔥\n"
                     f"━━━━━━━━━━━━━━━━━━━━\n"
                     f"🆔 পিরিয়ড: `#{next_period[-5:]}`\n"
                     f"━━━━━━━━━━━━━━━━━━━━\n"
@@ -313,7 +313,7 @@ async def prediction_bot():
                     f"• {rec}\n"
                     f"━━━━━━━━━━━━━━━━━━━━\n"
                     f"⏳ *রেজাল্টের জন্য অপেক্ষা...*\n"
-                    f"⚡ *GURU 30s WINGO BOT*"
+                    f"⚡ *GURU 3M WINGO BOT*"
                 )
 
                 last_predicted_period = next_period
@@ -336,7 +336,7 @@ async def prediction_bot():
 
 # ==================== 🚀 স্টার্ট ====================
 if __name__ == '__main__':
-    print("🔥 GURU 30s WINGO BIG/SMALL বট")
+    print("🔥 GURU 3M WINGO BIG/SMALL বট")
     print("━━━━━━━━━━━━━━━━━━━━")
     print("🤖 @rakiiibahmed")
     print(f"📡 চ্যাট আইডি: {CHAT_ID}")
