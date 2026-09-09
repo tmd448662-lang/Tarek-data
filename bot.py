@@ -57,12 +57,11 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# ==================== ওয়েব সার্ভার (Render এর জন্য) ───
+# ==================== ওয়েব সার্ভার ───
 class DummyServer(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.end_headers()
-        # ✅ ইমোজি বাদ - শুধু টেক্সট
         self.wfile.write(b"BOT is running!")
 
 def run_dummy_server():
@@ -71,7 +70,6 @@ def run_dummy_server():
     logger.info(f"Web server running on port {port}")
     server.serve_forever()
 
-# ওয়েব সার্ভার থ্রেড স্টার্ট
 threading.Thread(target=run_dummy_server, daemon=True).start()
 
 def keep_alive():
@@ -83,10 +81,9 @@ def keep_alive():
         except:
             pass
 
-# Keep-alive থ্রেড স্টার্ট
 threading.Thread(target=keep_alive, daemon=True).start()
 
-# ==================== API থেকে পিরিয়ড আনা ───
+# ==================== API ───
 async def fetch_period():
     try:
         async with aiohttp.ClientSession() as session:
@@ -105,14 +102,12 @@ async def fetch_period():
         logger.error(f"API Error: {e}")
     return None
 
-# ==================== প্রেডিকশন ফাংশন ───
 def get_prediction(period):
     if not period:
         return None
     last_digit = int(str(period)[-1])
     return LOGIC.get(last_digit)
 
-# ==================== রেজাল্ট ফরম্যাট ───
 def format_result_message(period, pred, actual, win):
     global total_wins, total_losses, win_streak, loss_streak, best_win_streak, worst_loss_streak, current_streak, current_streak_type, level
     
@@ -134,25 +129,22 @@ def format_result_message(period, pred, actual, win):
         current_streak_type = "LOSS"
     
     level = (total_wins // 100) + 1
-    result_emoji = "WIN" if win else "LOSS"
-    streak_emoji = "WIN" if win else "LOSS"
-    
     total = total_wins + total_losses
     win_rate = (total_wins / total * 100) if total > 0 else 0
     
     message = f"""
-RESULT UPDATE
+🎯 RESULT UPDATE
 ━━━━━━━━━━━━━━━━━━━━
-PERIOD: #{period[-5:]}
-PREDICTED: {pred['s']} → {pred['n']}
-ACTUAL: {actual['n']} ({actual['s']})
-RESULT: {result_emoji}
+🆔 PERIOD: #{period[-5:]}
+🎯 PREDICTED: {pred['s']} → {pred['n']}
+🎰 ACTUAL: {actual['n']} ({actual['s']})
+📌 RESULT: {'✅ WIN' if win else '❌ LOSS'}
 ━━━━━━━━━━━━━━━━━━━━
-WIN RATE: {win_rate:.1f}% ({total_wins}W/{total_losses}L)
-STREAK: {current_streak}x {current_streak_type}
-LEVEL: {level} ({level}x)
+📊 WIN RATE: {win_rate:.1f}% ({total_wins}W/{total_losses}L)
+📉 STREAK: {current_streak}x {current_streak_type}
+👑 LEVEL: {level}
 ━━━━━━━━━━━━━━━━━━━━
-BDT BD SHANTO 2K
+⚡ BDT BD SHANTO 2K
     """
     return message
 
@@ -160,25 +152,25 @@ BDT BD SHANTO 2K
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     welcome_text = f"""
-BDT BD SHANTO 2K - WINGO BOT
+🦋 BDT BD SHANTO 2K - WINGO BOT
 
-User: {user.first_name}
-ID: `{user.id}`
+👤 User: {user.first_name}
+🆔 ID: `{user.id}`
 
-Commands:
-/prediction - Current Prediction
-/status - Live Status
-/history - Last 10 Results
-/hourly - Hourly Report
-/help - Help
+📌 Commands:
+/prediction - 🔮 Current Prediction
+/status - 📊 Live Status
+/history - 📜 Last 10 Results
+/hourly - 📈 Hourly Report
+/help - ❓ Help
 
-1 Min Wingo Prediction Engine Active
+⚡ 1 Min Wingo Prediction Engine Active
     """
     keyboard = [
-        [InlineKeyboardButton("Prediction", callback_data="prediction"),
-         InlineKeyboardButton("Status", callback_data="status")],
-        [InlineKeyboardButton("History", callback_data="history"),
-         InlineKeyboardButton("Hourly", callback_data="hourly")]
+        [InlineKeyboardButton("🔮 Prediction", callback_data="prediction"),
+         InlineKeyboardButton("📊 Status", callback_data="status")],
+        [InlineKeyboardButton("📜 History", callback_data="history"),
+         InlineKeyboardButton("📈 Hourly", callback_data="hourly")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text(welcome_text, reply_markup=reply_markup, parse_mode="Markdown")
@@ -186,29 +178,29 @@ Commands:
 async def prediction(update: Update, context: ContextTypes.DEFAULT_TYPE):
     period = await fetch_period()
     if not period:
-        await update.message.reply_text("API Error! Please try again.")
+        await update.message.reply_text("❌ API Error! Please try again.")
         return
     
     pred = get_prediction(period)
     if not pred:
-        await update.message.reply_text("Prediction Error!")
+        await update.message.reply_text("❌ Prediction Error!")
         return
     
     last_digit = int(str(period)[-1])
     
     result_text = f"""
-WINGO PREDICTION
+🔮 WINGO PREDICTION
 
-Period: `{period}`
-Last Digit: `{last_digit}`
-Prediction: `{pred['s']} → {pred['n']}`
+📌 Period: `{period}`
+🔢 Last Digit: `{last_digit}`
+📈 Prediction: `{pred['s']} → {pred['n']}`
 
-Confidence: `{85 + (last_digit % 15)}%`
+📊 Confidence: `{85 + (last_digit % 15)}%`
 
-BDT BD SHANTO 2K VIP
+⚡ BDT BD SHANTO 2K VIP
     """
     
-    keyboard = [[InlineKeyboardButton("Refresh", callback_data="prediction")]]
+    keyboard = [[InlineKeyboardButton("🔄 Refresh", callback_data="prediction")]]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     if update.callback_query:
@@ -222,33 +214,33 @@ async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     period = await fetch_period()
     if not period:
-        await update.message.reply_text("API Error!")
+        await update.message.reply_text("❌ API Error!")
         return
     
     pred = get_prediction(period)
     if not pred:
-        await update.message.reply_text("Error!")
+        await update.message.reply_text("❌ Error!")
         return
     
     total = total_wins + total_losses
     win_rate = (total_wins / total * 100) if total > 0 else 0
     
     status_text = f"""
-LIVE STATUS
+📊 LIVE STATUS
 ━━━━━━━━━━━━━━━━━━━━
-PERIOD: #{period[-5:]}
-PREDICTION: {pred['s']} → {pred['n']}
+📌 PERIOD: #{period[-5:]}
+🎯 PREDICTION: {pred['s']} → {pred['n']}
 ━━━━━━━━━━━━━━━━━━━━
-WIN RATE: {win_rate:.1f}% ({total_wins}W/{total_losses}L)
-BEST WIN: {best_win_streak}x
-WORST LOSS: {worst_loss_streak}x
-CURRENT: {current_streak}x {current_streak_type}
-LEVEL: {level} ({level}x)
+📊 WIN RATE: {win_rate:.1f}% ({total_wins}W/{total_losses}L)
+🔥 BEST WIN: {best_win_streak}x
+📉 WORST LOSS: {worst_loss_streak}x
+📉 CURRENT: {current_streak}x {current_streak_type}
+👑 LEVEL: {level}
 ━━━━━━━━━━━━━━━━━━━━
-BDT BD SHANTO 2K
+⚡ BDT BD SHANTO 2K
     """
     
-    keyboard = [[InlineKeyboardButton("Refresh", callback_data="status")]]
+    keyboard = [[InlineKeyboardButton("🔄 Refresh", callback_data="status")]]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     if update.callback_query:
@@ -261,21 +253,21 @@ async def history_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global history
     
     if not history:
-        await update.message.reply_text("No history yet!")
+        await update.message.reply_text("📜 No history yet!")
         return
     
     last_10 = history[-10:][::-1]
-    text = "Last 10 Results\n━━━━━━━━━━━━━━━━━━━━\n"
+    text = "📜 Last 10 Results\n━━━━━━━━━━━━━━━━━━━━\n"
     
     for i, h in enumerate(last_10, 1):
-        emoji = "WIN" if h.get("win", False) else "LOSS"
+        emoji = "✅" if h.get("win", False) else "❌"
         text += f"{i}. #{h['period'][-5:]} → {h['pred']} ({h['number']}) {emoji}\n"
     
     total = len(history)
     wins = sum(1 for h in history if h.get("win", False))
-    text += f"\nTotal: {total} | Wins: {wins} | Losses: {total - wins}"
+    text += f"\n📊 Total: {total} | Wins: {wins} | Losses: {total - wins}"
     
-    keyboard = [[InlineKeyboardButton("Refresh", callback_data="history")]]
+    keyboard = [[InlineKeyboardButton("🔄 Refresh", callback_data="history")]]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     if update.callback_query:
@@ -321,23 +313,23 @@ async def hourly(update: Update, context: ContextTypes.DEFAULT_TYPE):
     current_time = now.strftime("%I:%M %p")
     
     message = f"""
-HOURLY PERFORMANCE REPORT
+📊 HOURLY PERFORMANCE REPORT
 ━━━━━━━━━━━━━━━━━━━━
-TIME: {current_time}
+🕐 TIME: {current_time}
 ━━━━━━━━━━━━━━━━━━━━
-TOTAL ROUNDS: {total}
-TOTAL WINS: {wins}
-TOTAL LOSSES: {losses}
-WIN RATE: {win_rate:.1f}%
+🔄 TOTAL ROUNDS: {total}
+✅ TOTAL WINS: {wins}
+❌ TOTAL LOSSES: {losses}
+📈 WIN RATE: {win_rate:.1f}%
 ━━━━━━━━━━━━━━━━━━━━
-BEST WIN STREAK: {best_win_streak}x
-WORST LOSS STREAK: {worst_loss_streak}x
-CURRENT STREAK: {streak}x {streak_type}
+🔥 BEST WIN STREAK: {best_win_streak}x
+📉 WORST LOSS STREAK: {worst_loss_streak}x
+📉 CURRENT STREAK: {streak}x {streak_type}
 ━━━━━━━━━━━━━━━━━━━━
-BDT BD SHANTO 2K
+⚡ BDT BD SHANTO 2K
     """
     
-    keyboard = [[InlineKeyboardButton("Refresh", callback_data="hourly")]]
+    keyboard = [[InlineKeyboardButton("🔄 Refresh", callback_data="hourly")]]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     if update.callback_query:
@@ -348,26 +340,26 @@ BDT BD SHANTO 2K
 
 async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     help_text = """
-HELP - WINGO PREDICTION BOT
+❓ HELP - WINGO PREDICTION BOT
 
-Commands:
-/prediction - Get current prediction
-/status - Live status & stats
-/history - Last 10 results
-/hourly - Hourly report
-/help - Show this help
+📌 Commands:
+/prediction - 🔮 Get current prediction
+/status - 📊 Live status & stats
+/history - 📜 Last 10 results
+/hourly - 📈 Hourly report
+/help - ❓ Show this help
 
-How it works:
+⚡ How it works:
 1. Bot fetches current period from API
 2. Uses AI logic to predict BIG/SMALL
 3. Shows confidence level
 
-Disclaimer:
+⚠️ Disclaimer:
 This is for entertainment only.
 No guarantee of winnings.
 Play responsibly.
 
-BDT BD SHANTO 2K
+🦋 BDT BD SHANTO 2K
     """
     await update.message.reply_text(help_text, parse_mode="Markdown")
 
@@ -434,14 +426,14 @@ async def auto_update():
                         try:
                             await application.bot.send_message(
                                 chat_id=ADMIN_ID,
-                                text=f"HOURLY REPORT - {current_hour:02d}:00\n"
+                                text=f"📊 HOURLY REPORT - {current_hour:02d}:00\n"
                                      f"━━━━━━━━━━━━━━━━━━━━\n"
-                                     f"Total: {hourly_stats['total']}\n"
-                                     f"Wins: {hourly_stats['win']}\n"
-                                     f"Losses: {hourly_stats['loss']}\n"
-                                     f"Win Rate: {(hourly_stats['win']/hourly_stats['total']*100) if hourly_stats['total'] > 0 else 0:.1f}%\n"
+                                     f"🔄 Total: {hourly_stats['total']}\n"
+                                     f"✅ Wins: {hourly_stats['win']}\n"
+                                     f"❌ Losses: {hourly_stats['loss']}\n"
+                                     f"📈 Win Rate: {(hourly_stats['win']/hourly_stats['total']*100) if hourly_stats['total'] > 0 else 0:.1f}%\n"
                                      f"━━━━━━━━━━━━━━━━━━━━\n"
-                                     f"BDT BD SHANTO 2K",
+                                     f"⚡ BDT BD SHANTO 2K",
                                 parse_mode="Markdown"
                             )
                         except:
@@ -461,10 +453,8 @@ async def auto_update():
 async def main():
     global application
     
-    # Create application
     application = Application.builder().token(BOT_TOKEN).build()
     
-    # Add handlers
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("prediction", prediction))
     application.add_handler(CommandHandler("status", status))
@@ -473,14 +463,12 @@ async def main():
     application.add_handler(CommandHandler("help", help_cmd))
     application.add_handler(CallbackQueryHandler(button_handler))
     
-    # Start auto update in background
     asyncio.create_task(auto_update())
     
-    print("BDT BD SHANTO 2K Bot Started!")
-    print(f"Bot Token: {BOT_TOKEN[:10]}...")
-    print("Waiting for commands...")
+    print("🤖 BDT BD SHANTO 2K Bot Started!")
+    print(f"📌 Bot Token: {BOT_TOKEN[:10]}...")
+    print("⚡ Waiting for commands...")
     
-    # Start polling
     await application.run_polling()
 
 if __name__ == "__main__":
