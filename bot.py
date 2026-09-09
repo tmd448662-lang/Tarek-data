@@ -14,7 +14,7 @@ BOT_TOKEN = "8386058038:AAEwayH-C4AUr7L_tx6Ecz__xpIXnrekJw0"
 ADMIN_ID = 5012028880
 API_URL = "https://draw.ar-lottery01.com/WinGo/WinGo_1M/GetHistoryIssuePage.json"
 
-# ==================== RGB PATTERN ───
+# ==================== ১. RGB (ANSH BOSS) ───
 RGB_PATTERN = [
     {"s": "BIG", "n": "7"}, {"s": "SMALL", "n": "2"},
     {"s": "SMALL", "n": "4"}, {"s": "BIG", "n": "9"},
@@ -28,15 +28,14 @@ def rgb_algorithm(period):
     idx = int(str(period)[-3:]) % 12
     return RGB_PATTERN[idx]
 
-# ==================== SHANTO ALGORITHM ───
-def shanto_algorithm(period, last_results):
+# ==================== ২. SHANTO (মার্কভ চেইন) ───
+def shanto_algorithm(last_results):
     if len(last_results) < 2:
-        return rgb_algorithm(period)
+        return {"s": "BIG", "n": "7"}
     
     last1 = last_results[-1]
     last2 = last_results[-2]
     
-    # Markov Chain Logic
     if last1 == "SMALL" and last2 == "SMALL":
         return {"s": "BIG", "n": "8"}
     elif last1 == "BIG" and last2 == "BIG":
@@ -45,7 +44,7 @@ def shanto_algorithm(period, last_results):
         return {"s": "BIG", "n": "7"}
     elif last1 == "BIG" and last2 == "SMALL":
         return {"s": "SMALL", "n": "4"}
-    return rgb_algorithm(period)
+    return {"s": "BIG", "n": "7"}
 
 # ==================== ডেটা ───
 total_wins = 0
@@ -59,7 +58,6 @@ last_pred_number = None
 last_pred_period = None
 prediction_sent = False
 last_results = []
-history = []
 
 # ==================== হাওয়ারলি ───
 hourly_stats = {
@@ -116,14 +114,14 @@ def send_telegram_message(message):
 def main():
     global total_wins, total_losses, current_streak, best_win_streak, worst_loss_streak
     global last_checked_period, last_prediction, last_pred_number, last_pred_period, prediction_sent
-    global last_results, history, hourly_stats, last_hour
+    global last_results, hourly_stats, last_hour
     
     print("🤖 Bot Started!")
     print("⚡ Order: RESULT → PREDICTION")
-    print("🧠 Algorithm: SHANTO + RGB (2 MATCH SYSTEM)")
+    print("🧠 2 Algorithms: SHANTO + RGB")
     print("📊 Match = PREDICTION | No Match = SKIP")
     
-    send_telegram_message("🤖 *BDT BD SHANTO 2K Bot Started!*\n⚡ Order: RESULT → PREDICTION\n🧠 2 Match System: SHANTO + RGB")
+    send_telegram_message("🤖 *BDT BD SHANTO 2K Bot Started!*\n🧠 SHANTO + RGB\n📊 2 Match System")
     
     while True:
         try:
@@ -181,7 +179,6 @@ def main():
                         total = total_wins + total_losses
                         win_rate = (total_wins / total * 100) if total > 0 else 0
                         
-                        # 🎯 RESULT MESSAGE (সবসময় দেখাবে)
                         result_msg = f"""
 🎯 *RESULT UPDATE*
 ━━━━━━━━━━━━━━━━━━━━
@@ -237,52 +234,45 @@ def main():
                 if not last_pred_period and not prediction_sent:
                     next_period = str(int(period) + 1)
                     
-                    # 🧠 ২টি অ্যালগরিদমের রেজাল্ট
+                    # 🧠 ২টি অ্যালগরিদম
                     rgb_pred = rgb_algorithm(next_period)
-                    shanto_pred = shanto_algorithm(next_period, last_results)
+                    shanto_pred = shanto_algorithm(last_results)
                     
-                    # ✅ MATCH CHECK: ২টি অ্যালগরিদম কি একই কথা বলছে?
+                    # ✅ ম্যাচ চেক
                     if rgb_pred["s"] == shanto_pred["s"]:
-                        # MATCH FOUND → প্রেডিকশন পাঠাবে
-                        pred = rgb_pred  # অথবা shanto_pred (দুইটাই একই)
-                        match_status = "✅ MATCH FOUND"
-                        match_emoji = "🟢"
-                        
+                        # ✅ MATCH FOUND
                         pred_msg = f"""
-🔮 *WINGO PREDICTION* {match_emoji}
+🔮 *WINGO PREDICTION* 🟢
 ━━━━━━━━━━━━━━━━━━━━
 📌 Period: `{next_period}`
-📈 Prediction: `{pred['s']}` → `{pred['n']}`
+📈 Prediction: `{rgb_pred['s']}` → `{rgb_pred['n']}`
 ━━━━━━━━━━━━━━━━━━━━
 🧠 SHANTO: `{shanto_pred['s']}` → `{shanto_pred['n']}`
 🧠 RGB: `{rgb_pred['s']}` → `{rgb_pred['n']}`
-📊 STATUS: `{match_status}`
+📊 STATUS: `✅ MATCH FOUND`
 ━━━━━━━━━━━━━━━━━━━━
 💡 TIP: Both algorithms agree! HIGH CONFIDENCE
 
 ⚡ BDT BD SHANTO 2K VIP
 """
                         send_telegram_message(pred_msg)
-                        print(f"✅ MATCH! Prediction sent: {pred['s']} → {pred['n']}")
+                        print(f"✅ MATCH! Prediction sent: {rgb_pred['s']} → {rgb_pred['n']}")
                         
                         last_pred_period = next_period
-                        last_prediction = pred['s']
-                        last_pred_number = pred['n']
+                        last_prediction = rgb_pred['s']
+                        last_pred_number = rgb_pred['n']
                         prediction_sent = True
                         
                     else:
-                        # ❌ NO MATCH → প্রেডিকশন পাঠাবে না (SKIP)
-                        match_status = "❌ NO MATCH (SKIP)"
-                        match_emoji = "🔴"
-                        
+                        # ❌ NO MATCH - SKIP
                         skip_msg = f"""
-⏭️ *PREDICTION SKIPPED* {match_emoji}
+⏭️ *PREDICTION SKIPPED* 🔴
 ━━━━━━━━━━━━━━━━━━━━
 📌 Period: `{next_period}`
 ━━━━━━━━━━━━━━━━━━━━
 🧠 SHANTO: `{shanto_pred['s']}` → `{shanto_pred['n']}`
 🧠 RGB: `{rgb_pred['s']}` → `{rgb_pred['n']}`
-📊 STATUS: `{match_status}`
+📊 STATUS: `❌ NO MATCH (SKIP)`
 ━━━━━━━━━━━━━━━━━━━━
 💡 TIP: Algorithms disagree! Waiting for next period.
 
@@ -290,10 +280,7 @@ def main():
 """
                         send_telegram_message(skip_msg)
                         print(f"❌ NO MATCH! Skipped: SHANTO={shanto_pred['s']}, RGB={rgb_pred['s']}")
-                        
-                        # SKIP করলেও RESULT এর জন্য সেট করে রাখি
-                        # কিন্তু প্রেডিকশন পাঠাবো না
-                        prediction_sent = True  # যাতে আবার চেষ্টা না করে
+                        prediction_sent = True
             
             time.sleep(5)
             
