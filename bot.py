@@ -1,298 +1,435 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import requests
+import asyncio
 import time
+import requests
 import os
-import json
-from datetime import datetime
+from datetime import datetime, timezone
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import threading
+from telegram import Bot
 
 # ==================== কনফিগ ───
 BOT_TOKEN = "8386058038:AAEwayH-C4AUr7L_tx6Ecz__xpIXnrekJw0"
-ADMIN_ID = 5012028880
+CHAT_ID = "5012028880"
 API_URL = "https://draw.ar-lottery01.com/WinGo/WinGo_1M/GetHistoryIssuePage.json"
-
-# ==================== ১. RGB (ANSH BOSS) ───
-RGB_PATTERN = [
-    {"s": "BIG", "n": "7"}, {"s": "SMALL", "n": "2"},
-    {"s": "SMALL", "n": "4"}, {"s": "BIG", "n": "9"},
-    {"s": "BIG", "n": "6"}, {"s": "SMALL", "n": "0"},
-    {"s": "BIG", "n": "8"}, {"s": "SMALL", "n": "3"},
-    {"s": "SMALL", "n": "1"}, {"s": "BIG", "n": "5"},
-    {"s": "BIG", "n": "7"}, {"s": "SMALL", "n": "4"}
-]
-
-def rgb_algorithm(period):
-    idx = int(str(period)[-3:]) % 12
-    return RGB_PATTERN[idx]
-
-# ==================== ২. SHANTO (মার্কভ চেইন + অফসেট) ───
-def shanto_algorithm(last_results, period):
-    # প্রথমে RGB থেকে প্রেডিকশন নিই
-    rgb_pred = rgb_algorithm(period)
-    
-    if len(last_results) < 2:
-        return rgb_pred
-    
-    last1 = last_results[-1]
-    last2 = last_results[-2]
-    
-    # মার্কভ চেইন লজিক
-    if last1 == "SMALL" and last2 == "SMALL":
-        return {"s": "BIG", "n": "8"}
-    elif last1 == "BIG" and last2 == "BIG":
-        return {"s": "SMALL", "n": "3"}
-    elif last1 == "SMALL" and last2 == "BIG":
-        return {"s": "BIG", "n": "7"}
-    elif last1 == "BIG" and last2 == "SMALL":
-        return {"s": "SMALL", "n": "4"}
-    
-    # কোন প্যাটার্ন না মিললে RGB ফলো করবে
-    return rgb_pred
-
-# ==================== ডেটা ───
-total_wins = 0
-total_losses = 0
-current_streak = 0
-best_win_streak = 0
-worst_loss_streak = 0
-last_checked_period = None
-last_prediction = None
-last_pred_number = None
-last_pred_period = None
-prediction_sent = False
-last_results = []
-
-# ==================== হাওয়ারলি ───
-hourly_stats = {
-    "win": 0, "loss": 0, "total": 0,
-    "win_streak": 0, "loss_streak": 0,
-    "current_streak": 0, "streak_type": "WIN"
-}
-last_hour = datetime.now().hour
 
 # ==================== ওয়েব সার্ভার ───
 class DummyServer(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.end_headers()
-        self.wfile.write(b"Bot is running!")
+        self.wfile.write(b"SHANTO+RGB VIP BOT is running!")
 
 def run_dummy_server():
     port = int(os.environ.get("PORT", 8080))
     server = HTTPServer(('0.0.0.0', port), DummyServer)
-    print(f"Web server running on port {port}")
     server.serve_forever()
 
 threading.Thread(target=run_dummy_server, daemon=True).start()
 
-# ==================== API ───
-def fetch_data():
-    try:
-        url = API_URL + "?t=" + str(int(time.time() * 1000))
-        response = requests.get(url, timeout=5)
-        if response.status_code == 200:
-            data = response.json()
-            if data and data.get("data") and data["data"].get("list"):
-                return data["data"]["list"]
-    except Exception as e:
-        print(f"API Error: {e}")
-    return None
-
-# ==================== Telegram সেন্ড ───
-def send_telegram_message(message):
-    try:
-        url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-        payload = {
-            "chat_id": ADMIN_ID,
-            "text": message,
-            "parse_mode": "Markdown"
-        }
-        response = requests.post(url, json=payload, timeout=5)
-        return response.status_code == 200
-    except Exception as e:
-        print(f"Send error: {e}")
-        return False
-
-# ==================== মেইন লুপ ───
-def main():
-    global total_wins, total_losses, current_streak, best_win_streak, worst_loss_streak
-    global last_checked_period, last_prediction, last_pred_number, last_pred_period, prediction_sent
-    global last_results, hourly_stats, last_hour
-    
-    print("🤖 Bot Started!")
-    print("⚡ Order: RESULT → PREDICTION")
-    print("🧠 2 Algorithms: SHANTO + RGB (ANSH BOSS)")
-    print("📊 Match = PREDICTION | No Match = SKIP")
-    
-    send_telegram_message("🤖 *BDT BD SHANTO 2K Bot Started!*\n🧠 SHANTO + RGB\n📊 2 Match System")
-    
+def keep_alive():
     while True:
         try:
-            data_list = fetch_data()
-            
-            if data_list:
-                latest = data_list[0]
-                period = latest.get("issueNumber")
-                actual_num = int(latest.get("number"))
-                actual_type = "BIG" if actual_num >= 5 else "SMALL"
-                
-                if period != last_checked_period:
-                    last_checked_period = period
-                    prediction_sent = False
-                    print(f"📡 New Period: {period}, Number: {actual_num}")
-                    
-                    # ==================== RESULT CHECK ====================
-                    if last_pred_period and last_pred_period == period:
-                        win = last_prediction == actual_type
+            time.sleep(600)
+            port = int(os.environ.get("PORT", 8080))
+            requests.get(f"http://localhost:{port}/", timeout=5)
+        except:
+            pass
+
+threading.Thread(target=keep_alive, daemon=True).start()
+
+# ==================== বট ───
+bot = Bot(token=BOT_TOKEN)
+
+# ==================== ডেটা ───
+match_wins = 0
+match_losses = 0
+match_total = 0
+loss_streak = 0
+current_level = 1
+
+history_data = []
+last_predicted_period = None
+last_predicted_signal = None
+last_predicted_num = None
+last_match_status = None
+prediction_sent_for_period = {}
+
+# ==================== আওয়ারলি ───
+hourly_stats = {
+    'total_rounds': 0,
+    'total_wins': 0,
+    'total_losses': 0,
+    'max_win_streak': 0,
+    'max_loss_streak': 0,
+    'current_streak': 0,
+    'streak_type': 'WIN'
+}
+last_hour_report_time = time.time()
+
+# ============================================================
+# 🧠 ১. SHANTO (মার্কভ চেইন)
+# ============================================================
+
+def shanto_algorithm(last_results):
+    if len(last_results) < 2:
+        return {"s": "BIG", "n": 7}
+    
+    last1 = last_results[-1]
+    last2 = last_results[-2]
+    
+    if last1 == "SMALL" and last2 == "SMALL":
+        return {"s": "BIG", "n": 8}
+    elif last1 == "BIG" and last2 == "BIG":
+        return {"s": "SMALL", "n": 3}
+    elif last1 == "SMALL" and last2 == "BIG":
+        return {"s": "BIG", "n": 7}
+    elif last1 == "BIG" and last2 == "SMALL":
+        return {"s": "SMALL", "n": 4}
+    return {"s": "BIG", "n": 7}
+
+# ============================================================
+# 🧠 ২. RGB (ANSH BOSS)
+# ============================================================
+
+RGB_PATTERN = [
+    {"s": "BIG", "n": 7}, {"s": "SMALL", "n": 2},
+    {"s": "SMALL", "n": 4}, {"s": "BIG", "n": 9},
+    {"s": "BIG", "n": 6}, {"s": "SMALL", "n": 0},
+    {"s": "BIG", "n": 8}, {"s": "SMALL", "n": 3},
+    {"s": "SMALL", "n": 1}, {"s": "BIG", "n": 5},
+    {"s": "BIG", "n": 7}, {"s": "SMALL", "n": 4}
+]
+
+def get_correct_period_index():
+    now = datetime.now(timezone.utc)
+    midnight = datetime(now.year, now.month, now.day, 0, 0, 0, tzinfo=timezone.utc)
+    diff_seconds = (now - midnight).total_seconds()
+    period_index = int(diff_seconds // 60) + 1
+    return period_index
+
+def rgb_algorithm():
+    period_index = get_correct_period_index()
+    pattern_index = (period_index + 5) % 12
+    pred = RGB_PATTERN[pattern_index]
+    return {"s": pred["s"], "n": pred["n"]}
+
+# ============================================================
+# 🎯 MASTER MATCHING (SHANTO + RGB)
+# ============================================================
+
+def master_system(last_results):
+    shanto = shanto_algorithm(last_results)
+    rgb = rgb_algorithm()
+    
+    if shanto["s"] == rgb["s"]:
+        return {
+            'matched': True,
+            'prediction': shanto["s"],
+            'number': shanto["n"],
+            'shanto': shanto,
+            'rgb': rgb,
+            'confidence': 90
+        }
+    else:
+        return {
+            'matched': False,
+            'prediction': None,
+            'number': None,
+            'shanto': shanto,
+            'rgb': rgb,
+            'confidence': 0
+        }
+
+# ==================== API ───
+def fetch_api_data():
+    try:
+        res = requests.get(API_URL + "?t=" + str(int(time.time() * 1000)), timeout=5)
+        if res.status_code == 200:
+            data = res.json()
+            return data.get("data", {}).get("list", [])
+    except:
+        pass
+    return []
+
+# ==================== আওয়ারলি ───
+async def send_hourly_report():
+    global hourly_stats, last_hour_report_time
+
+    if time.time() - last_hour_report_time >= 3600:
+        total = hourly_stats['total_rounds']
+        wins = hourly_stats['total_wins']
+        losses = hourly_stats['total_losses']
+        win_rate = (wins / total * 100) if total > 0 else 0
+
+        report_msg = (
+            f"📊 *HOURLY REPORT*\n"
+            f"━━━━━━━━━━━━━━━━━━━━\n"
+            f"🕐 {datetime.now().strftime('%I:%M %p')}\n"
+            f"━━━━━━━━━━━━━━━━━━━━\n"
+            f"🔄 TOTAL: `{total}`\n"
+            f"✅ WINS: `{wins}`\n"
+            f"❌ LOSSES: `{losses}`\n"
+            f"📈 WIN RATE: `{win_rate:.1f}%`\n"
+            f"━━━━━━━━━━━━━━━━━━━━\n"
+            f"🔥 BEST WIN: `{hourly_stats['max_win_streak']}x`\n"
+            f"📉 WORST LOSS: `{hourly_stats['max_loss_streak']}x`\n"
+            f"🔥 CURRENT: `{hourly_stats['current_streak']}x {hourly_stats['streak_type']}`\n"
+            f"━━━━━━━━━━━━━━━━━━━━\n"
+            f"💎 SHANTO+RGB VIP"
+        )
+        try:
+            await bot.send_message(chat_id=CHAT_ID, text=report_msg, parse_mode="Markdown")
+        except:
+            pass
+
+        hourly_stats = {
+            'total_rounds': 0,
+            'total_wins': 0,
+            'total_losses': 0,
+            'max_win_streak': 0,
+            'max_loss_streak': 0,
+            'current_streak': 0,
+            'streak_type': 'WIN'
+        }
+        last_hour_report_time = time.time()
+
+# ==================== মেইন ───
+async def prediction_bot():
+    global match_wins, match_losses, match_total
+    global loss_streak, current_level
+    global history_data, last_predicted_period
+    global last_predicted_signal, last_predicted_num, last_match_status
+    global prediction_sent_for_period
+
+    print("🔥 SHANTO+RGB VIP BOT STARTED...")
+    print("🧠 SHANTO + RGB (ANSH BOSS)")
+    print("✅ MATCH = SEND | ❌ NO MATCH = SKIP")
+
+    try:
+        await bot.send_message(
+            chat_id=CHAT_ID,
+            text=(
+                "🔥 *SHANTO+RGB VIP* 🔥\n"
+                "━━━━━━━━━━━━━━━━━━━━\n"
+                "🧠 SHANTO + RGB (ANSH BOSS)\n"
+                "✅ MATCH = SEND PREDICTION\n"
+                "❌ NO MATCH = SKIP\n"
+                "📡 MODE: 1 MIN WINGO\n"
+                "━━━━━━━━━━━━━━━━━━━━\n"
+                "⏳ WAITING..."
+            ),
+            parse_mode="Markdown"
+        )
+    except Exception as e:
+        print(f"Startup error: {e}")
+
+    while True:
+        try:
+            current_sec = int(time.time()) % 60
+            sleep_time = 60 - current_sec + 3
+            await asyncio.sleep(sleep_time)
+
+            raw_list = fetch_api_data()
+            if not raw_list:
+                print("⚠️ API ডেটা নেই")
+                continue
+
+            history_data = []
+            for h in raw_list[:20]:
+                num = int(h['number'])
+                history_data.append({
+                    'issueNumber': str(h['issueNumber']),
+                    'number': num,
+                    'side': "BIG" if num >= 5 else "SMALL"
+                })
+
+            latest = history_data[0]
+            latest_issue = latest['issueNumber']
+            actual_num = latest['number']
+            actual_type = "BIG" if actual_num >= 5 else "SMALL"
+
+            print(f"📡 PERIOD: {latest_issue}, NUMBER: {actual_num}")
+
+            # ==================== RESULT CHECK ====================
+            if last_predicted_period == latest_issue:
+
+                if last_match_status == 'match' and last_predicted_signal is not None:
+                    is_win = (last_predicted_signal == actual_type)
+                    is_jackpot = (actual_num == 0 or actual_num == 5)
+
+                    if is_win or is_jackpot:
+                        match_wins += 1
+                        hourly_stats['total_wins'] += 1
+                        status = "WIN 🟢"
                         
-                        if win:
-                            total_wins += 1
-                            current_streak += 1
-                            if current_streak > best_win_streak:
-                                best_win_streak = current_streak
-                            hourly_stats["win"] += 1
-                            
-                            if hourly_stats["streak_type"] == "WIN":
-                                hourly_stats["current_streak"] += 1
-                            else:
-                                hourly_stats["current_streak"] = 1
-                                hourly_stats["streak_type"] = "WIN"
-                            if hourly_stats["current_streak"] > hourly_stats["win_streak"]:
-                                hourly_stats["win_streak"] = hourly_stats["current_streak"]
+                        if loss_streak >= 0:
+                            loss_streak += 1
                         else:
-                            total_losses += 1
-                            current_streak = 0
-                            if current_streak < worst_loss_streak:
-                                worst_loss_streak = current_streak
-                            hourly_stats["loss"] += 1
-                            
-                            if hourly_stats["streak_type"] == "LOSS":
-                                hourly_stats["current_streak"] += 1
-                            else:
-                                hourly_stats["current_streak"] = 1
-                                hourly_stats["streak_type"] = "LOSS"
-                            if hourly_stats["current_streak"] > hourly_stats["loss_streak"]:
-                                hourly_stats["loss_streak"] = hourly_stats["current_streak"]
-                        
-                        hourly_stats["total"] += 1
-                        last_results.append(actual_type)
-                        if len(last_results) > 20:
-                            last_results = last_results[-20:]
-                        
-                        total = total_wins + total_losses
-                        win_rate = (total_wins / total * 100) if total > 0 else 0
-                        
-                        result_msg = f"""
-🎯 *RESULT UPDATE*
-━━━━━━━━━━━━━━━━━━━━
-🆔 PERIOD: `#{period[-5:]}`
-🎯 PREDICTED: `{last_prediction}` → `{last_pred_number}`
-🎰 ACTUAL: `{actual_num}` (`{actual_type}`)
-📌 RESULT: `{'✅ WIN' if win else '❌ LOSS'}`
-━━━━━━━━━━━━━━━━━━━━
-📊 WIN RATE: `{win_rate:.1f}%` ({total_wins}W/{total_losses}L)
-📉 STREAK: `{current_streak}x`
-━━━━━━━━━━━━━━━━━━━━
-⚡ BDT BD SHANTO 2K
-"""
-                        send_telegram_message(result_msg)
-                        print(f"📊 Result sent: {'WIN' if win else 'LOSS'}")
-                        
-                        last_pred_period = None
-                        last_prediction = None
-                        last_pred_number = None
-                        
-                        # ==================== HOURLY REPORT ====================
-                        current_hour = datetime.now().hour
-                        if current_hour != last_hour:
-                            last_hour = current_hour
-                            if hourly_stats["total"] > 0:
-                                win_rate_hourly = (hourly_stats["win"] / hourly_stats["total"] * 100)
-                                streak_emoji = "🔥" if hourly_stats["streak_type"] == "WIN" else "📉"
-                                
-                                hourly_msg = f"""
-📊 *HOURLY REPORT* - {current_hour:02d}:00
-━━━━━━━━━━━━━━━━━━━━
-🔄 TOTAL: `{hourly_stats['total']}`
-✅ WINS: `{hourly_stats['win']}`
-❌ LOSSES: `{hourly_stats['loss']}`
-📈 WIN RATE: `{win_rate_hourly:.1f}%`
-━━━━━━━━━━━━━━━━━━━━
-🔥 BEST WIN STREAK: `{hourly_stats['win_streak']}x`
-📉 WORST LOSS STREAK: `{hourly_stats['loss_streak']}x`
-{streak_emoji} CURRENT: `{hourly_stats['current_streak']}x {hourly_stats['streak_type']}`
-━━━━━━━━━━━━━━━━━━━━
-⚡ BDT BD SHANTO 2K
-"""
-                                send_telegram_message(hourly_msg)
-                                print(f"📈 Hourly report sent")
-                            
-                            hourly_stats = {
-                                "win": 0, "loss": 0, "total": 0,
-                                "win_streak": 0, "loss_streak": 0,
-                                "current_streak": 0, "streak_type": "WIN"
-                            }
-                
-                # ==================== NEW PREDICTION ====================
-                if not last_pred_period and not prediction_sent:
-                    next_period = str(int(period) + 1)
-                    
-                    # 🧠 ২টি অ্যালগরিদম
-                    rgb_pred = rgb_algorithm(next_period)
-                    shanto_pred = shanto_algorithm(last_results, next_period)
-                    
-                    # ✅ ম্যাচ চেক
-                    if rgb_pred["s"] == shanto_pred["s"]:
-                        # ✅ MATCH FOUND
-                        pred_msg = f"""
-🔮 *WINGO PREDICTION* 🟢
-━━━━━━━━━━━━━━━━━━━━
-📌 Period: `{next_period}`
-📈 Prediction: `{rgb_pred['s']}` → `{rgb_pred['n']}`
-━━━━━━━━━━━━━━━━━━━━
-🧠 SHANTO: `{shanto_pred['s']}` → `{shanto_pred['n']}`
-🧠 RGB: `{rgb_pred['s']}` → `{rgb_pred['n']}`
-📊 STATUS: `✅ MATCH FOUND`
-━━━━━━━━━━━━━━━━━━━━
-💡 TIP: Both algorithms agree! HIGH CONFIDENCE
+                            loss_streak = 1
+                        current_level = 1
 
-⚡ BDT BD SHANTO 2K VIP
-"""
-                        send_telegram_message(pred_msg)
-                        print(f"✅ MATCH! Prediction sent: {rgb_pred['s']} → {rgb_pred['n']}")
-                        
-                        last_pred_period = next_period
-                        last_prediction = rgb_pred['s']
-                        last_pred_number = rgb_pred['n']
-                        prediction_sent = True
-                        
+                        if hourly_stats['streak_type'] == 'WIN':
+                            hourly_stats['current_streak'] += 1
+                        else:
+                            hourly_stats['current_streak'] = 1
+                            hourly_stats['streak_type'] = 'WIN'
+                        if hourly_stats['current_streak'] > hourly_stats['max_win_streak']:
+                            hourly_stats['max_win_streak'] = hourly_stats['current_streak']
+
+                        jackpot_text = " ⭐ JACKPOT!" if is_jackpot else ""
                     else:
-                        # ❌ NO MATCH - SKIP
-                        skip_msg = f"""
-⏭️ *PREDICTION SKIPPED* 🔴
-━━━━━━━━━━━━━━━━━━━━
-📌 Period: `{next_period}`
-━━━━━━━━━━━━━━━━━━━━
-🧠 SHANTO: `{shanto_pred['s']}` → `{shanto_pred['n']}`
-🧠 RGB: `{rgb_pred['s']}` → `{rgb_pred['n']}`
-📊 STATUS: `❌ NO MATCH (SKIP)`
-━━━━━━━━━━━━━━━━━━━━
-💡 TIP: Algorithms disagree! Waiting for next period.
+                        match_losses += 1
+                        hourly_stats['total_losses'] += 1
+                        status = "LOSS 🔴"
+                        
+                        if loss_streak <= 0:
+                            loss_streak -= 1
+                        else:
+                            loss_streak = -1
+                        current_level = (current_level % 3) + 1
 
-⚡ BDT BD SHANTO 2K VIP
-"""
-                        send_telegram_message(skip_msg)
-                        print(f"❌ NO MATCH! Skipped: SHANTO={shanto_pred['s']}, RGB={rgb_pred['s']}")
-                        prediction_sent = True
-            
-            time.sleep(5)
-            
+                        if hourly_stats['streak_type'] == 'LOSS':
+                            hourly_stats['current_streak'] += 1
+                        else:
+                            hourly_stats['current_streak'] = 1
+                            hourly_stats['streak_type'] = 'LOSS'
+                        if hourly_stats['current_streak'] > hourly_stats['max_loss_streak']:
+                            hourly_stats['max_loss_streak'] = hourly_stats['current_streak']
+
+                        jackpot_text = ""
+
+                    match_total += 1
+                    hourly_stats['total_rounds'] += 1
+
+                    total_games = match_wins + match_losses
+                    win_rate = (match_wins / total_games * 100) if total_games > 0 else 0.0
+                    multiplier = f"{current_level}x"
+                    streak_emoji = "🔥" if loss_streak > 0 else "📉" if loss_streak < 0 else "⏸️"
+
+                    result_msg = (
+                        f"🎯 *RESULT UPDATE*\n"
+                        f"━━━━━━━━━━━━━━━━━━━━\n"
+                        f"🆔 PERIOD: `#{latest_issue[-5:]}`\n"
+                        f"🎯 PREDICTED: `{last_predicted_signal}` → `{last_predicted_num}`\n"
+                        f"🎰 ACTUAL: `{actual_num}` (`{actual_type}`)\n"
+                        f"📌 RESULT: `{status}`{jackpot_text}\n"
+                        f"━━━━━━━━━━━━━━━━━━━━\n"
+                        f"📊 WIN RATE: `{win_rate:.1f}%` ({match_wins}W/{match_losses}L)\n"
+                        f"{streak_emoji} STREAK: `{loss_streak:+d}`\n"
+                        f"👑 LEVEL: `{current_level}` ({multiplier})\n"
+                        f"━━━━━━━━━━━━━━━━━━━━\n"
+                        f"💎 SHANTO+RGB VIP"
+                    )
+
+                    try:
+                        await bot.send_message(chat_id=CHAT_ID, text=result_msg, parse_mode="Markdown")
+                        await asyncio.sleep(1)
+                    except:
+                        pass
+
+                    await send_hourly_report()
+
+                else:
+                    # NO MATCH
+                    result_msg = (
+                        f"🎯 *RESULT (NO MATCH)*\n"
+                        f"━━━━━━━━━━━━━━━━━━━━\n"
+                        f"🆔 PERIOD: `#{latest_issue[-5:]}`\n"
+                        f"🎰 ACTUAL: `{actual_num}` (`{actual_type}`)\n"
+                        f"━━━━━━━━━━━━━━━━━━━━\n"
+                        f"💎 SHANTO+RGB VIP"
+                    )
+
+                    try:
+                        await bot.send_message(chat_id=CHAT_ID, text=result_msg, parse_mode="Markdown")
+                        await asyncio.sleep(1)
+                    except:
+                        pass
+
+                last_predicted_period = None
+                last_predicted_signal = None
+                last_predicted_num = None
+                last_match_status = None
+
+            # ==================== NEW PREDICTION ====================
+            next_period = str(int(latest_issue) + 1)
+            print(f"🎯 NEXT PERIOD: {next_period}")
+
+            if not prediction_sent_for_period.get(next_period, False):
+                last_results = [d['side'] for d in history_data[:10]]
+                pred = master_system(last_results)
+
+                if pred['matched']:
+                    last_match_status = 'match'
+                    
+                    prediction_msg = (
+                        f"🔮 *PREDICTION* 🟢\n"
+                        f"━━━━━━━━━━━━━━━━━━━━\n"
+                        f"🆔 PERIOD: `#{next_period[-5:]}`\n"
+                        f"🎯 PREDICTION: `{pred['prediction']}` → `{pred['number']}`\n"
+                        f"━━━━━━━━━━━━━━━━━━━━\n"
+                        f"🧠 SHANTO: `{pred['shanto']['s']}` → `{pred['shanto']['n']}`\n"
+                        f"🧠 RGB: `{pred['rgb']['s']}` → `{pred['rgb']['n']}`\n"
+                        f"📊 STATUS: `✅ MATCH FOUND`\n"
+                        f"━━━━━━━━━━━━━━━━━━━━\n"
+                        f"💎 SHANTO+RGB VIP"
+                    )
+
+                    last_predicted_period = next_period
+                    last_predicted_signal = pred['prediction']
+                    last_predicted_num = pred['number']
+                    prediction_sent_for_period[next_period] = True
+
+                    try:
+                        await bot.send_message(chat_id=CHAT_ID, text=prediction_msg, parse_mode="Markdown")
+                        print(f"✅ MATCH: {next_period} → {pred['prediction']}")
+                    except Exception as e:
+                        print(f"❌ SEND FAILED: {e}")
+
+                else:
+                    last_match_status = 'no_match'
+                    
+                    no_match_msg = (
+                        f"⏭️ *NO MATCH* 🔴\n"
+                        f"━━━━━━━━━━━━━━━━━━━━\n"
+                        f"🆔 PERIOD: `#{next_period[-5:]}`\n"
+                        f"━━━━━━━━━━━━━━━━━━━━\n"
+                        f"🧠 SHANTO: `{pred['shanto']['s']}` → `{pred['shanto']['n']}`\n"
+                        f"🧠 RGB: `{pred['rgb']['s']}` → `{pred['rgb']['n']}`\n"
+                        f"📊 STATUS: `❌ NO MATCH (SKIP)`\n"
+                        f"━━━━━━━━━━━━━━━━━━━━\n"
+                        f"💎 SHANTO+RGB VIP"
+                    )
+
+                    last_predicted_period = next_period
+                    last_predicted_signal = None
+                    last_predicted_num = None
+                    prediction_sent_for_period[next_period] = True
+
+                    try:
+                        await bot.send_message(chat_id=CHAT_ID, text=no_match_msg, parse_mode="Markdown")
+                        print(f"❌ NO MATCH: {next_period}")
+                    except Exception as e:
+                        print(f"❌ SEND FAILED: {e}")
+
+                if len(prediction_sent_for_period) > 5:
+                    oldest = min(prediction_sent_for_period.keys())
+                    del prediction_sent_for_period[oldest]
+
         except Exception as e:
-            print(f"❌ Main loop error: {e}")
-            time.sleep(10)
+            print(f"❌ Loop Error: {e}")
+            await asyncio.sleep(5)
 
-if __name__ == "__main__":
-    main()
+# ==================== স্টার্ট ───
+if __name__ == '__main__':
+    print("🔥 SHANTO+RGB VIP BOT")
+    print("━━━━━━━━━━━━━━━━━━━━")
+    print("🧠 SHANTO + RGB (ANSH BOSS)")
+    print("✅ MATCH = SEND PREDICTION + RESULT")
+    print("❌ NO MATCH = SHOW RESULT ONLY")
+    print("📡 MODE: 1 MIN WINGO")
+    print("━━━━━━━━━━━━━━━━━━━━")
+    asyncio.run(prediction_bot())
