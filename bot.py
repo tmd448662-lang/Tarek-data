@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-🔥 GURU 30s WINGO BIG/SMALL বট - ফিক্সড ভার্সন
+🔥 GURU 30s WINGO BIG/SMALL বট - DNS ফিক্সড
 🤖 @rakiiibahmed
 """
 
@@ -32,12 +32,10 @@ except ImportError:
 BOT_TOKEN = "8386058038:AAEwayH-C4AUr7L_tx6Ecz__xpIXnrekJw0"
 CHAT_ID = "5012028880"
 
-# ✅ একাধিক API URL (কোনটা কাজ করবে চেষ্টা করবে)
+# ✅ শুধু সঠিক URL (art-lottery01.com বাদ)
 API_URLS = [
     "https://draw.ar-lottery01.com/WinGo/WinGo_30s/GetHistoryIssuePage.json",
     "https://api.ar-lottery01.com/WinGo/WinGo_30s/GetHistoryIssuePage.json",
-    "https://draw.art-lottery01.com/WinGo/WinGo_30s/GetHistoryIssuePage.json",
-    "https://api.art-lottery01.com/WinGo/WinGo_30s/GetHistoryIssuePage.json",
 ]
 
 # ==================== 🌐 ওয়েব সার্ভার ====================
@@ -73,7 +71,6 @@ total_rounds = 0
 current_streak = 0
 best_streak = 0
 
-# ✅ Period ট্র্যাকিং
 last_predicted_period = None
 last_predicted_signal = None
 last_predicted_num = None
@@ -105,7 +102,7 @@ def guru_algorithm(period_number):
         logger.error(f"অ্যালগরিদম এরর: {e}")
         return {'prediction': 'BIG', 'number': 5, 'digit_sum': 0, 'confidence': 50}
 
-# ==================== 📡 API ফেচ (মাল্টিপল URL) ====================
+# ==================== 📡 API ফেচ ====================
 def fetch_api_data():
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -120,6 +117,7 @@ def fetch_api_data():
     for api_url in API_URLS:
         try:
             url = api_url + "?t=" + str(int(time.time() * 1000))
+            logger.info(f"📡 চেষ্টা করছি: {api_url}")
             res = requests.get(url, headers=headers, timeout=10)
             
             if res.status_code == 200:
@@ -132,6 +130,10 @@ def fetch_api_data():
                     logger.warning(f"⚠️ {api_url} → ডেটা খালি")
             else:
                 logger.warning(f"⚠️ {api_url} → HTTP {res.status_code}")
+        except requests.exceptions.ConnectionError as e:
+            logger.warning(f"⚠️ {api_url} → Connection Error: {e}")
+        except requests.exceptions.Timeout as e:
+            logger.warning(f"⚠️ {api_url} → Timeout: {e}")
         except Exception as e:
             logger.warning(f"⚠️ {api_url} → এরর: {e}")
     
@@ -196,7 +198,6 @@ async def prediction_bot():
     logger.info(f"📡 চ্যাট আইডি: {CHAT_ID}")
     logger.info("━━━━━━━━━━━━━━━━━━━━")
 
-    # স্টার্টআপ মেসেজ
     await send_message(
         "🔥 *GURU 30s WINGO BIG/SMALL বট* 🔥\n"
         "━━━━━━━━━━━━━━━━━━━━\n"
@@ -211,7 +212,6 @@ async def prediction_bot():
 
     while True:
         try:
-            # ✅ 30 সেকেন্ডের জন্য অপেক্ষা
             current_sec = int(time.time()) % 30
             sleep_time = 30 - current_sec + 3
             await asyncio.sleep(sleep_time)
@@ -223,7 +223,6 @@ async def prediction_bot():
                 logger.warning("⚠️ ডেটা নেই, রিট্রাই...")
                 continue
 
-            # ✅ লেটেস্ট পিরিয়ড (ইন্ডেক্স 0)
             latest = raw_list[0]
             latest_issue = str(latest.get('issueNumber', ''))
             
@@ -236,9 +235,7 @@ async def prediction_bot():
 
             logger.info(f"📡 লেটেস্ট পিরিয়ড: {latest_issue}, নাম্বার: {actual_num} ({actual_type})")
 
-            # ============================================================
-            # 🔥 STEP 1: রেজাল্ট চেক
-            # ============================================================
+            # ===== রেজাল্ট চেক =====
             if last_predicted_period == latest_issue and last_predicted_signal is not None and not last_result_sent:
                 is_win = (last_predicted_signal == actual_type)
                 
@@ -255,8 +252,6 @@ async def prediction_bot():
 
                 total_rounds += 1
                 win_rate = (total_wins / total_rounds * 100) if total_rounds > 0 else 0
-
-                # লেভেল ক্যালকুলেশন
                 level = min(10, max(1, current_streak + 1)) if current_streak >= 0 else 1
 
                 result_msg = (
@@ -280,7 +275,6 @@ async def prediction_bot():
                 last_result_period = latest_issue
                 logger.info(f"✅ রেজাল্ট পাঠানো হয়েছে: {latest_issue}")
 
-                # প্রতি ঘন্টায় রিপোর্ট
                 if time.time() - last_hour_time >= 3600:
                     await send_hourly_report()
                     total_wins = 0
@@ -290,9 +284,7 @@ async def prediction_bot():
                     best_streak = 0
                     last_hour_time = time.time()
 
-            # ============================================================
-            # 🔥 STEP 2: নতুন প্রেডিকশন
-            # ============================================================
+            # ===== নতুন প্রেডিকশন =====
             next_period = str(int(latest_issue) + 1)
             
             if next_period not in prediction_sent_for_period or not prediction_sent_for_period[next_period]:
@@ -325,7 +317,6 @@ async def prediction_bot():
                     f"⚡ *GURU 30s WINGO BOT*"
                 )
 
-                # ✅ সেভ করুন
                 last_predicted_period = next_period
                 last_predicted_signal = pred['prediction']
                 last_predicted_num = pred['number']
@@ -335,7 +326,6 @@ async def prediction_bot():
                 await send_message(prediction_msg)
                 logger.info(f"✅ প্রেডিকশন: {next_period} → {pred['prediction']} ({pred['number']})")
 
-                # ✅ পুরনো পিরিয়ড ক্লিয়ার করুন
                 if len(prediction_sent_for_period) > 5:
                     oldest = min(prediction_sent_for_period.keys())
                     del prediction_sent_for_period[oldest]
