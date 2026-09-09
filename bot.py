@@ -37,19 +37,16 @@ current_streak = 0
 best_win_streak = 0
 worst_loss_streak = 0
 current_period = None
-last_result = None
 last_prediction = None
+last_pred_number = None
+last_pred_period = None
 history = []
 
-# ==================== হাওয়ারলি ডেটা ───
+# ==================== হাওয়ারলি ───
 hourly_stats = {
-    "win": 0, 
-    "loss": 0, 
-    "total": 0,
-    "win_streak": 0,
-    "loss_streak": 0,
-    "current_streak": 0,
-    "streak_type": "WIN"
+    "win": 0, "loss": 0, "total": 0,
+    "win_streak": 0, "loss_streak": 0,
+    "current_streak": 0, "streak_type": "WIN"
 }
 last_hour = datetime.now().hour
 
@@ -69,15 +66,14 @@ def run_dummy_server():
 threading.Thread(target=run_dummy_server, daemon=True).start()
 
 # ==================== API ───
-def fetch_period():
+def fetch_data():
     try:
         url = API_URL + "?t=" + str(int(time.time() * 1000))
         response = requests.get(url, timeout=5)
         if response.status_code == 200:
             data = response.json()
             if data and data.get("data") and data["data"].get("list"):
-                latest = data["data"]["list"][0]
-                return latest.get("issueNumber")
+                return data["data"]["list"]
     except Exception as e:
         print(f"API Error: {e}")
     return None
@@ -105,86 +101,74 @@ def send_telegram_message(message):
 
 # ==================== মেইন লুপ ───
 def main():
-    global total_wins, total_losses, current_streak, best_win_streak, worst_loss_streak, current_period, last_result, last_prediction, history, hourly_stats, last_hour
+    global total_wins, total_losses, current_streak, best_win_streak, worst_loss_streak
+    global current_period, last_prediction, last_pred_number, last_pred_period
+    global history, hourly_stats, last_hour
     
     print("🤖 Bot Started!")
-    print(f"📌 Bot Token: {BOT_TOKEN[:10]}...")
-    print("⚡ Waiting for signals...")
+    print("⚡ Order: RESULT → PREDICTION")
     
-    send_telegram_message("🤖 *BDT BD SHANTO 2K Bot Started!*\n⚡ Waiting for signals...")
+    send_telegram_message("🤖 *BDT BD SHANTO 2K Bot Started!*\n⚡ Order: RESULT → PREDICTION")
     
     while True:
         try:
-            period = fetch_period()
+            data_list = fetch_data()
             
-            if period:
-                print(f"📡 Period: {period}")
+            if data_list:
+                latest = data_list[0]
+                period = latest.get("issueNumber")
+                actual_num = int(latest.get("number"))
+                actual_type = "BIG" if actual_num >= 5 else "SMALL"
                 
-                if period != current_period:
-                    current_period = period
-                    pred = get_prediction(period)
+                print(f"📡 Period: {period}, Number: {actual_num}")
+                
+                # =====================================================
+                # STEP 1: RESULT CHECK (আগের প্রেডিকশনের রেজাল্ট)
+                # =====================================================
+                if last_pred_period and last_pred_period == period:
+                    win = last_prediction == actual_type
                     
-                    if pred:
-                        # ==================== 📢 PREDICTION MESSAGE ====================
-                        pred_msg = f"""
-🔮 *WINGO PREDICTION*
-
-📌 Period: `{period}`
-🔢 Last Digit: `{str(period)[-1]}`
-📈 Prediction: `{pred['s']} → {pred['n']}`
-
-⚡ BDT BD SHANTO 2K VIP
-"""
-                        send_telegram_message(pred_msg)
-                        print(f"✅ Prediction sent: {pred['s']} → {pred['n']}")
+                    if win:
+                        total_wins += 1
+                        current_streak += 1
+                        if current_streak > best_win_streak:
+                            best_win_streak = current_streak
+                        hourly_stats["win"] += 1
                         
-                        # ==================== 📊 RESULT CHECK ====================
-                        if last_result and last_prediction:
-                            win = last_prediction == pred["s"]
-                            
-                            if win:
-                                total_wins += 1
-                                current_streak += 1
-                                if current_streak > best_win_streak:
-                                    best_win_streak = current_streak
-                                hourly_stats["win"] += 1
-                                
-                                # হাওয়ারলি উইন স্ট্রিক আপডেট
-                                if hourly_stats["streak_type"] == "WIN":
-                                    hourly_stats["current_streak"] += 1
-                                else:
-                                    hourly_stats["current_streak"] = 1
-                                    hourly_stats["streak_type"] = "WIN"
-                                if hourly_stats["current_streak"] > hourly_stats["win_streak"]:
-                                    hourly_stats["win_streak"] = hourly_stats["current_streak"]
-                                    
-                            else:
-                                total_losses += 1
-                                current_streak = 0
-                                if current_streak < worst_loss_streak:
-                                    worst_loss_streak = current_streak
-                                hourly_stats["loss"] += 1
-                                
-                                # হাওয়ারলি লস স্ট্রিক আপডেট
-                                if hourly_stats["streak_type"] == "LOSS":
-                                    hourly_stats["current_streak"] += 1
-                                else:
-                                    hourly_stats["current_streak"] = 1
-                                    hourly_stats["streak_type"] = "LOSS"
-                                if hourly_stats["current_streak"] > hourly_stats["loss_streak"]:
-                                    hourly_stats["loss_streak"] = hourly_stats["current_streak"]
-                            
-                            hourly_stats["total"] += 1
-                            
-                            total = total_wins + total_losses
-                            win_rate = (total_wins / total * 100) if total > 0 else 0
-                            
-                            # ==================== 📊 RESULT MESSAGE ====================
-                            result_msg = f"""
+                        if hourly_stats["streak_type"] == "WIN":
+                            hourly_stats["current_streak"] += 1
+                        else:
+                            hourly_stats["current_streak"] = 1
+                            hourly_stats["streak_type"] = "WIN"
+                        if hourly_stats["current_streak"] > hourly_stats["win_streak"]:
+                            hourly_stats["win_streak"] = hourly_stats["current_streak"]
+                    else:
+                        total_losses += 1
+                        current_streak = 0
+                        if current_streak < worst_loss_streak:
+                            worst_loss_streak = current_streak
+                        hourly_stats["loss"] += 1
+                        
+                        if hourly_stats["streak_type"] == "LOSS":
+                            hourly_stats["current_streak"] += 1
+                        else:
+                            hourly_stats["current_streak"] = 1
+                            hourly_stats["streak_type"] = "LOSS"
+                        if hourly_stats["current_streak"] > hourly_stats["loss_streak"]:
+                            hourly_stats["loss_streak"] = hourly_stats["current_streak"]
+                    
+                    hourly_stats["total"] += 1
+                    
+                    total = total_wins + total_losses
+                    win_rate = (total_wins / total * 100) if total > 0 else 0
+                    
+                    # 📊 RESULT MESSAGE (প্রথমে)
+                    result_msg = f"""
 🎯 *RESULT UPDATE*
 ━━━━━━━━━━━━━━━━━━━━
-🎯 PREDICTED: `{last_prediction}`
-🎰 ACTUAL: `{pred['s']}` → `{pred['n']}`
+🆔 PERIOD: `#{period[-5:]}`
+🎯 PREDICTED: `{last_prediction}` → `{last_pred_number}`
+🎰 ACTUAL: `{actual_num}` (`{actual_type}`)
 📌 RESULT: `{'✅ WIN' if win else '❌ LOSS'}`
 ━━━━━━━━━━━━━━━━━━━━
 📊 WIN RATE: `{win_rate:.1f}%` ({total_wins}W/{total_losses}L)
@@ -192,21 +176,23 @@ def main():
 ━━━━━━━━━━━━━━━━━━━━
 ⚡ BDT BD SHANTO 2K
 """
-                            send_telegram_message(result_msg)
-                            print(f"📊 Result sent: {'WIN' if win else 'LOSS'}")
+                    send_telegram_message(result_msg)
+                    print(f"📊 Result sent: {'WIN' if win else 'LOSS'}")
+                    
+                    # রিসেট
+                    last_pred_period = None
+                    last_prediction = None
+                    last_pred_number = None
+                    
+                    # ==================== HOURLY REPORT ====================
+                    current_hour = datetime.now().hour
+                    if current_hour != last_hour:
+                        last_hour = current_hour
+                        if hourly_stats["total"] > 0:
+                            win_rate_hourly = (hourly_stats["win"] / hourly_stats["total"] * 100)
+                            streak_emoji = "🔥" if hourly_stats["streak_type"] == "WIN" else "📉"
                             
-                            # ==================== 📈 HOURLY REPORT ====================
-                            current_hour = datetime.now().hour
-                            if current_hour != last_hour:
-                                last_hour = current_hour
-                                
-                                if hourly_stats["total"] > 0:
-                                    win_rate_hourly = (hourly_stats["win"] / hourly_stats["total"] * 100)
-                                    
-                                    # স্ট্রিক এমোজি
-                                    streak_emoji = "🔥" if hourly_stats["streak_type"] == "WIN" else "📉"
-                                    
-                                    hourly_msg = f"""
+                            hourly_msg = f"""
 📊 *HOURLY REPORT* - {current_hour:02d}:00
 ━━━━━━━━━━━━━━━━━━━━
 🔄 TOTAL: `{hourly_stats['total']}`
@@ -216,28 +202,42 @@ def main():
 ━━━━━━━━━━━━━━━━━━━━
 🔥 BEST WIN STREAK: `{hourly_stats['win_streak']}x`
 📉 WORST LOSS STREAK: `{hourly_stats['loss_streak']}x`
-{streak_emoji} CURRENT STREAK: `{hourly_stats['current_streak']}x {hourly_stats['streak_type']}`
+{streak_emoji} CURRENT: `{hourly_stats['current_streak']}x {hourly_stats['streak_type']}`
 ━━━━━━━━━━━━━━━━━━━━
 ⚡ BDT BD SHANTO 2K
 """
-                                    send_telegram_message(hourly_msg)
-                                    print(f"📈 Hourly report sent")
-                                
-                                # রিসেট হাওয়ারলি স্ট্যাটস
-                                hourly_stats = {
-                                    "win": 0, 
-                                    "loss": 0, 
-                                    "total": 0,
-                                    "win_streak": 0,
-                                    "loss_streak": 0,
-                                    "current_streak": 0,
-                                    "streak_type": "WIN"
-                                }
+                            send_telegram_message(hourly_msg)
+                            print(f"📈 Hourly report sent")
                         
-                        last_result = {"period": period, "pred": pred["s"], "number": pred["n"]}
-                        last_prediction = pred["s"]
-            else:
-                print("⚠️ No period received")
+                        hourly_stats = {
+                            "win": 0, "loss": 0, "total": 0,
+                            "win_streak": 0, "loss_streak": 0,
+                            "current_streak": 0, "streak_type": "WIN"
+                        }
+                
+                # =====================================================
+                # STEP 2: NEW PREDICTION (রেজাল্টের পর)
+                # =====================================================
+                next_period = str(int(period) + 1)
+                pred = get_prediction(next_period)
+                
+                if pred:
+                    # 🔮 PREDICTION MESSAGE (পরে)
+                    pred_msg = f"""
+🔮 *WINGO PREDICTION*
+
+📌 Period: `{next_period}`
+🔢 Last Digit: `{str(next_period)[-1]}`
+📈 Prediction: `{pred['s']}` → `{pred['n']}`
+
+⚡ BDT BD SHANTO 2K VIP
+"""
+                    send_telegram_message(pred_msg)
+                    print(f"✅ Prediction sent: {pred['s']} → {pred['n']} for {next_period}")
+                    
+                    last_pred_period = next_period
+                    last_prediction = pred['s']
+                    last_pred_number = pred['n']
             
             time.sleep(5)
             
