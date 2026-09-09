@@ -7,11 +7,12 @@ import json
 import logging
 from datetime import datetime
 from telegram import Bot, Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Updater, CommandHandler, CallbackQueryHandler, CallbackContext
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
 import os
 import time
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import threading
+import requests
 
 # ==================== কনফিগ ───
 BOT_TOKEN = "8386058038:AAEwayH-C4AUr7L_tx6Ecz__xpIXnrekJw0"
@@ -47,6 +48,7 @@ last_result = None
 level = 1
 total_wins = 0
 total_losses = 0
+application = None
 
 # ==================== লগিং ───
 logging.basicConfig(
@@ -75,7 +77,6 @@ def keep_alive():
         try:
             time.sleep(600)
             port = int(os.environ.get("PORT", 8080))
-            import requests
             requests.get(f"http://localhost:{port}/", timeout=5)
         except:
             pass
@@ -153,7 +154,7 @@ def format_result_message(period, pred, actual, win):
     return message
 
 # ==================== Telegram Handlers ───
-def start(update: Update, context: CallbackContext):
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     welcome_text = f"""
 🦋 BDT BD SHANTO 2K - WINGO BOT
@@ -177,17 +178,17 @@ def start(update: Update, context: CallbackContext):
          InlineKeyboardButton("📈 Hourly", callback_data="hourly")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    update.message.reply_text(welcome_text, reply_markup=reply_markup, parse_mode="Markdown")
+    await update.message.reply_text(welcome_text, reply_markup=reply_markup, parse_mode="Markdown")
 
-def prediction(update: Update, context: CallbackContext):
-    period = asyncio.run(fetch_period())
+async def prediction(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    period = await fetch_period()
     if not period:
-        update.message.reply_text("❌ API Error! Please try again.")
+        await update.message.reply_text("❌ API Error! Please try again.")
         return
     
     pred = get_prediction(period)
     if not pred:
-        update.message.reply_text("❌ Prediction Error!")
+        await update.message.reply_text("❌ Prediction Error!")
         return
     
     last_digit = int(str(period)[-1])
@@ -208,22 +209,22 @@ def prediction(update: Update, context: CallbackContext):
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     if update.callback_query:
-        update.callback_query.message.edit_text(result_text, reply_markup=reply_markup, parse_mode="Markdown")
-        update.callback_query.answer()
+        await update.callback_query.message.edit_text(result_text, reply_markup=reply_markup, parse_mode="Markdown")
+        await update.callback_query.answer()
     else:
-        update.message.reply_text(result_text, reply_markup=reply_markup, parse_mode="Markdown")
+        await update.message.reply_text(result_text, reply_markup=reply_markup, parse_mode="Markdown")
 
-def status(update: Update, context: CallbackContext):
+async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global total_wins, total_losses, best_win_streak, worst_loss_streak, current_streak, current_streak_type, level
     
-    period = asyncio.run(fetch_period())
+    period = await fetch_period()
     if not period:
-        update.message.reply_text("❌ API Error!")
+        await update.message.reply_text("❌ API Error!")
         return
     
     pred = get_prediction(period)
     if not pred:
-        update.message.reply_text("❌ Error!")
+        await update.message.reply_text("❌ Error!")
         return
     
     total = total_wins + total_losses
@@ -248,16 +249,16 @@ def status(update: Update, context: CallbackContext):
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     if update.callback_query:
-        update.callback_query.message.edit_text(status_text, reply_markup=reply_markup, parse_mode="Markdown")
-        update.callback_query.answer()
+        await update.callback_query.message.edit_text(status_text, reply_markup=reply_markup, parse_mode="Markdown")
+        await update.callback_query.answer()
     else:
-        update.message.reply_text(status_text, reply_markup=reply_markup, parse_mode="Markdown")
+        await update.message.reply_text(status_text, reply_markup=reply_markup, parse_mode="Markdown")
 
-def history_cmd(update: Update, context: CallbackContext):
+async def history_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global history
     
     if not history:
-        update.message.reply_text("📜 No history yet!")
+        await update.message.reply_text("📜 No history yet!")
         return
     
     last_10 = history[-10:][::-1]
@@ -275,12 +276,12 @@ def history_cmd(update: Update, context: CallbackContext):
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     if update.callback_query:
-        update.callback_query.message.edit_text(text, reply_markup=reply_markup, parse_mode="Markdown")
-        update.callback_query.answer()
+        await update.callback_query.message.edit_text(text, reply_markup=reply_markup, parse_mode="Markdown")
+        await update.callback_query.answer()
     else:
-        update.message.reply_text(text, reply_markup=reply_markup, parse_mode="Markdown")
+        await update.message.reply_text(text, reply_markup=reply_markup, parse_mode="Markdown")
 
-def hourly(update: Update, context: CallbackContext):
+async def hourly(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global history, hourly_stats, best_win_streak, worst_loss_streak
     
     now = datetime.now()
@@ -337,12 +338,12 @@ def hourly(update: Update, context: CallbackContext):
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     if update.callback_query:
-        update.callback_query.message.edit_text(message, reply_markup=reply_markup, parse_mode="Markdown")
-        update.callback_query.answer()
+        await update.callback_query.message.edit_text(message, reply_markup=reply_markup, parse_mode="Markdown")
+        await update.callback_query.answer()
     else:
-        update.message.reply_text(message, reply_markup=reply_markup, parse_mode="Markdown")
+        await update.message.reply_text(message, reply_markup=reply_markup, parse_mode="Markdown")
 
-def help_cmd(update: Update, context: CallbackContext):
+async def help_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     help_text = """
 ❓ HELP - WINGO PREDICTION BOT
 
@@ -365,24 +366,24 @@ Play responsibly.
 
 🦋 BDT BD SHANTO 2K
     """
-    update.message.reply_text(help_text, parse_mode="Markdown")
+    await update.message.reply_text(help_text, parse_mode="Markdown")
 
-def button_handler(update: Update, context: CallbackContext):
+async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     data = query.data
     
     if data == "prediction":
-        prediction(update, context)
+        await prediction(update, context)
     elif data == "status":
-        status(update, context)
+        await status(update, context)
     elif data == "history":
-        history_cmd(update, context)
+        await history_cmd(update, context)
     elif data == "hourly":
-        hourly(update, context)
+        await hourly(update, context)
 
 # ==================== Auto Update ───
 async def auto_update():
-    global history, hourly_stats, last_hour, current_period, last_result, total_wins, total_losses, updater
+    global history, hourly_stats, last_hour, current_period, last_result, total_wins, total_losses, application
     
     while True:
         try:
@@ -407,7 +408,7 @@ async def auto_update():
                         result_msg = format_result_message(period, pred, actual, win)
                         
                         try:
-                            updater.bot.send_message(
+                            await application.bot.send_message(
                                 chat_id=ADMIN_ID,
                                 text=result_msg,
                                 parse_mode="Markdown"
@@ -428,7 +429,7 @@ async def auto_update():
                         last_hour = current_hour
                         
                         try:
-                            updater.bot.send_message(
+                            await application.bot.send_message(
                                 chat_id=ADMIN_ID,
                                 text=f"📊 HOURLY REPORT - {current_hour:02d}:00\n"
                                      f"━━━━━━━━━━━━━━━━━━━━\n"
@@ -454,34 +455,30 @@ async def auto_update():
         await asyncio.sleep(2)
 
 # ==================== Main ───
-def main():
-    global updater
+async def main():
+    global application
     
-    # Create updater
-    updater = Updater(token=BOT_TOKEN, use_context=True)
-    dp = updater.dispatcher
+    # Create application
+    application = Application.builder().token(BOT_TOKEN).build()
     
     # Add handlers
-    dp.add_handler(CommandHandler("start", start))
-    dp.add_handler(CommandHandler("prediction", prediction))
-    dp.add_handler(CommandHandler("status", status))
-    dp.add_handler(CommandHandler("history", history_cmd))
-    dp.add_handler(CommandHandler("hourly", hourly))
-    dp.add_handler(CommandHandler("help", help_cmd))
-    dp.add_handler(CallbackQueryHandler(button_handler))
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("prediction", prediction))
+    application.add_handler(CommandHandler("status", status))
+    application.add_handler(CommandHandler("history", history_cmd))
+    application.add_handler(CommandHandler("hourly", hourly))
+    application.add_handler(CommandHandler("help", help_cmd))
+    application.add_handler(CallbackQueryHandler(button_handler))
     
     # Start auto update in background
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    loop.create_task(auto_update())
+    asyncio.create_task(auto_update())
     
     print("🤖 BDT BD SHANTO 2K Bot Started!")
     print(f"📌 Bot Token: {BOT_TOKEN[:10]}...")
     print("⚡ Waiting for commands...")
     
     # Start polling
-    updater.start_polling()
-    updater.idle()
+    await application.run_polling()
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
