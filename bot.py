@@ -1,16 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import logging
-from datetime import datetime
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Updater, CommandHandler, CallbackQueryHandler
-import os
+import requests
 import time
+import os
+import json
+from datetime import datetime
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import threading
-import requests
-import json
 
 # ==================== কনফিগ ───
 BOT_TOKEN = "8386058038:AAEwayH-C4AUr7L_tx6Ecz__xpIXnrekJw0"
@@ -38,44 +35,23 @@ total_losses = 0
 current_streak = 0
 best_win_streak = 0
 worst_loss_streak = 0
-hourly_stats = {"win": 0, "loss": 0, "total": 0}
-last_hour = datetime.now().hour
 current_period = None
 last_result = None
-level = 1
-
-# ==================== লগিং ───
-logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
-)
-logger = logging.getLogger(__name__)
 
 # ==================== ওয়েব সার্ভার ───
 class DummyServer(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.end_headers()
-        self.wfile.write(b"BOT is running!")
+        self.wfile.write(b"Bot is running!")
 
 def run_dummy_server():
     port = int(os.environ.get("PORT", 8080))
     server = HTTPServer(('0.0.0.0', port), DummyServer)
-    logger.info(f"Web server running on port {port}")
+    print(f"Web server running on port {port}")
     server.serve_forever()
 
 threading.Thread(target=run_dummy_server, daemon=True).start()
-
-def keep_alive():
-    while True:
-        try:
-            time.sleep(600)
-            port = int(os.environ.get("PORT", 8080))
-            requests.get(f"http://localhost:{port}/", timeout=5)
-        except:
-            pass
-
-threading.Thread(target=keep_alive, daemon=True).start()
 
 # ==================== API ───
 def fetch_period():
@@ -93,7 +69,7 @@ def fetch_period():
             if data and data.get("code") == 0:
                 return data.get("data", {}).get("issueNumber")
     except Exception as e:
-        logger.error(f"API Error: {e}")
+        print(f"API Error: {e}")
     return None
 
 def get_prediction(period):
@@ -102,341 +78,92 @@ def get_prediction(period):
     last_digit = int(str(period)[-1])
     return LOGIC.get(last_digit)
 
-def format_result_message(period, pred, actual, win):
-    global total_wins, total_losses, current_streak, best_win_streak, worst_loss_streak, level
-    
-    if win:
-        total_wins += 1
-        current_streak += 1
-        if current_streak > best_win_streak:
-            best_win_streak = current_streak
-    else:
-        total_losses += 1
-        current_streak = 0
-        if current_streak < worst_loss_streak:
-            worst_loss_streak = current_streak
-    
-    level = (total_wins // 100) + 1
-    total = total_wins + total_losses
-    win_rate = (total_wins / total * 100) if total > 0 else 0
-    
-    message = f"""
-🎯 RESULT UPDATE
-━━━━━━━━━━━━━━━━━━━━
-🆔 PERIOD: #{period[-5:]}
-🎯 PREDICTED: {pred['s']} → {pred['n']}
-🎰 ACTUAL: {actual['n']} ({actual['s']})
-📌 RESULT: {'✅ WIN' if win else '❌ LOSS'}
-━━━━━━━━━━━━━━━━━━━━
-📊 WIN RATE: {win_rate:.1f}% ({total_wins}W/{total_losses}L)
-📉 STREAK: {current_streak}x
-👑 LEVEL: {level}
-━━━━━━━━━━━━━━━━━━━━
-⚡ BDT BD SHANTO 2K
-    """
-    return message
+# ==================== Telegram সেন্ড ───
+def send_telegram_message(message):
+    try:
+        url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+        payload = {
+            "chat_id": ADMIN_ID,
+            "text": message,
+            "parse_mode": "Markdown"
+        }
+        requests.post(url, json=payload, timeout=5)
+    except Exception as e:
+        print(f"Send error: {e}")
 
-# ==================== Handlers ───
-def start(update, context):
-    user = update.effective_user
-    welcome_text = f"""
-🦋 BDT BD SHANTO 2K - WINGO BOT
-
-👤 User: {user.first_name}
-🆔 ID: `{user.id}`
-
-📌 Commands:
-/prediction - 🔮 Current Prediction
-/status - 📊 Live Status
-/history - 📜 Last 10 Results
-/hourly - 📈 Hourly Report
-/help - ❓ Help
-
-⚡ 1 Min Wingo Prediction Engine Active
-    """
-    keyboard = [
-        [InlineKeyboardButton("🔮 Prediction", callback_data="prediction"),
-         InlineKeyboardButton("📊 Status", callback_data="status")],
-        [InlineKeyboardButton("📜 History", callback_data="history"),
-         InlineKeyboardButton("📈 Hourly", callback_data="hourly")]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    update.message.reply_text(welcome_text, reply_markup=reply_markup, parse_mode="Markdown")
-
-def prediction(update, context):
-    period = fetch_period()
-    if not period:
-        update.message.reply_text("❌ API Error! Please try again.")
-        return
+# ==================== মেইন লুপ ───
+def main():
+    global history, total_wins, total_losses, current_streak, best_win_streak, worst_loss_streak, current_period, last_result
     
-    pred = get_prediction(period)
-    if not pred:
-        update.message.reply_text("❌ Prediction Error!")
-        return
+    print("🤖 Bot Started!")
+    print(f"📌 Bot Token: {BOT_TOKEN[:10]}...")
+    print("⚡ Waiting...")
     
-    last_digit = int(str(period)[-1])
-    
-    result_text = f"""
-🔮 WINGO PREDICTION
-
-📌 Period: `{period}`
-🔢 Last Digit: `{last_digit}`
-📈 Prediction: `{pred['s']} → {pred['n']}`
-
-📊 Confidence: `{85 + (last_digit % 15)}%`
-
-⚡ BDT BD SHANTO 2K VIP
-    """
-    
-    keyboard = [[InlineKeyboardButton("🔄 Refresh", callback_data="prediction")]]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    if update.callback_query:
-        update.callback_query.message.edit_text(result_text, reply_markup=reply_markup, parse_mode="Markdown")
-        update.callback_query.answer()
-    else:
-        update.message.reply_text(result_text, reply_markup=reply_markup, parse_mode="Markdown")
-
-def status(update, context):
-    global total_wins, total_losses, best_win_streak, worst_loss_streak, current_streak, level
-    
-    period = fetch_period()
-    if not period:
-        update.message.reply_text("❌ API Error!")
-        return
-    
-    pred = get_prediction(period)
-    if not pred:
-        update.message.reply_text("❌ Error!")
-        return
-    
-    total = total_wins + total_losses
-    win_rate = (total_wins / total * 100) if total > 0 else 0
-    
-    status_text = f"""
-📊 LIVE STATUS
-━━━━━━━━━━━━━━━━━━━━
-📌 PERIOD: #{period[-5:]}
-🎯 PREDICTION: {pred['s']} → {pred['n']}
-━━━━━━━━━━━━━━━━━━━━
-📊 WIN RATE: {win_rate:.1f}% ({total_wins}W/{total_losses}L)
-🔥 BEST WIN: {best_win_streak}x
-📉 WORST LOSS: {worst_loss_streak}x
-📉 CURRENT: {current_streak}x
-👑 LEVEL: {level}
-━━━━━━━━━━━━━━━━━━━━
-⚡ BDT BD SHANTO 2K
-    """
-    
-    keyboard = [[InlineKeyboardButton("🔄 Refresh", callback_data="status")]]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    if update.callback_query:
-        update.callback_query.message.edit_text(status_text, reply_markup=reply_markup, parse_mode="Markdown")
-        update.callback_query.answer()
-    else:
-        update.message.reply_text(status_text, reply_markup=reply_markup, parse_mode="Markdown")
-
-def history_cmd(update, context):
-    global history
-    
-    if not history:
-        update.message.reply_text("📜 No history yet!")
-        return
-    
-    last_10 = history[-10:][::-1]
-    text = "📜 Last 10 Results\n━━━━━━━━━━━━━━━━━━━━\n"
-    
-    for i, h in enumerate(last_10, 1):
-        emoji = "✅" if h.get("win", False) else "❌"
-        text += f"{i}. #{h['period'][-5:]} → {h['pred']} ({h['number']}) {emoji}\n"
-    
-    total = len(history)
-    wins = sum(1 for h in history if h.get("win", False))
-    text += f"\n📊 Total: {total} | Wins: {wins} | Losses: {total - wins}"
-    
-    keyboard = [[InlineKeyboardButton("🔄 Refresh", callback_data="history")]]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    if update.callback_query:
-        update.callback_query.message.edit_text(text, reply_markup=reply_markup, parse_mode="Markdown")
-        update.callback_query.answer()
-    else:
-        update.message.reply_text(text, reply_markup=reply_markup, parse_mode="Markdown")
-
-def hourly(update, context):
-    global history, hourly_stats, best_win_streak, worst_loss_streak
-    
-    now = datetime.now()
-    hour_start = now.replace(minute=0, second=0, microsecond=0)
-    
-    hourly_results = [h for h in history if h.get("timestamp", 0) >= hour_start.timestamp()]
-    
-    wins = sum(1 for h in hourly_results if h.get("win", False))
-    total = len(hourly_results)
-    losses = total - wins
-    win_rate = (wins / total * 100) if total > 0 else 0
-    
-    current_time = now.strftime("%I:%M %p")
-    
-    message = f"""
-📊 HOURLY PERFORMANCE REPORT
-━━━━━━━━━━━━━━━━━━━━
-🕐 TIME: {current_time}
-━━━━━━━━━━━━━━━━━━━━
-🔄 TOTAL ROUNDS: {total}
-✅ TOTAL WINS: {wins}
-❌ TOTAL LOSSES: {losses}
-📈 WIN RATE: {win_rate:.1f}%
-━━━━━━━━━━━━━━━━━━━━
-🔥 BEST WIN STREAK: {best_win_streak}x
-📉 WORST LOSS STREAK: {worst_loss_streak}x
-━━━━━━━━━━━━━━━━━━━━
-⚡ BDT BD SHANTO 2K
-    """
-    
-    keyboard = [[InlineKeyboardButton("🔄 Refresh", callback_data="hourly")]]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    
-    if update.callback_query:
-        update.callback_query.message.edit_text(message, reply_markup=reply_markup, parse_mode="Markdown")
-        update.callback_query.answer()
-    else:
-        update.message.reply_text(message, reply_markup=reply_markup, parse_mode="Markdown")
-
-def help_cmd(update, context):
-    help_text = """
-❓ HELP - WINGO PREDICTION BOT
-
-📌 Commands:
-/prediction - 🔮 Get current prediction
-/status - 📊 Live status & stats
-/history - 📜 Last 10 results
-/hourly - 📈 Hourly report
-/help - ❓ Show this help
-
-⚠️ Disclaimer:
-This is for entertainment only.
-No guarantee of winnings.
-Play responsibly.
-
-🦋 BDT BD SHANTO 2K
-    """
-    update.message.reply_text(help_text, parse_mode="Markdown")
-
-def button_handler(update, context):
-    query = update.callback_query
-    data = query.data
-    
-    if data == "prediction":
-        prediction(update, context)
-    elif data == "status":
-        status(update, context)
-    elif data == "history":
-        history_cmd(update, context)
-    elif data == "hourly":
-        hourly(update, context)
-
-# ==================== Auto Update ───
-def auto_update():
-    global history, hourly_stats, last_hour, current_period, last_result, total_wins, total_losses, current_streak, best_win_streak, worst_loss_streak, level
+    # Start message
+    send_telegram_message("🤖 *BDT BD SHANTO 2K Bot Started!*\n⚡ Waiting for signals...")
     
     while True:
         try:
             period = fetch_period()
+            
             if period and period != current_period:
                 current_period = period
                 pred = get_prediction(period)
                 
                 if pred:
+                    # Send prediction
+                    pred_msg = f"""
+🔮 *WINGO PREDICTION*
+
+📌 Period: `{period}`
+🔢 Last Digit: `{str(period)[-1]}`
+📈 Prediction: `{pred['s']} → {pred['n']}`
+
+⚡ BDT BD SHANTO 2K VIP
+"""
+                    send_telegram_message(pred_msg)
+                    
                     if last_result:
                         win = last_result.get("pred") == pred["s"]
                         
-                        history.append({
-                            "period": period,
-                            "pred": pred["s"],
-                            "number": pred["n"],
-                            "win": win,
-                            "timestamp": datetime.now().timestamp()
-                        })
+                        if win:
+                            total_wins += 1
+                            current_streak += 1
+                            if current_streak > best_win_streak:
+                                best_win_streak = current_streak
+                        else:
+                            total_losses += 1
+                            current_streak = 0
+                            if current_streak < worst_loss_streak:
+                                worst_loss_streak = current_streak
+                        
+                        total = total_wins + total_losses
+                        win_rate = (total_wins / total * 100) if total > 0 else 0
                         
                         actual = {"n": last_result.get("number"), "s": last_result.get("pred")}
-                        result_msg = format_result_message(period, pred, actual, win)
                         
-                        try:
-                            updater.bot.send_message(
-                                chat_id=ADMIN_ID,
-                                text=result_msg,
-                                parse_mode="Markdown"
-                            )
-                        except Exception as e:
-                            logger.error(f"Send message error: {e}")
-                        
-                        if win:
-                            hourly_stats["win"] += 1
-                        else:
-                            hourly_stats["loss"] += 1
-                        hourly_stats["total"] += 1
+                        result_msg = f"""
+🎯 *RESULT UPDATE*
+━━━━━━━━━━━━━━━━━━━━
+🆔 PERIOD: #{period[-5:]}
+🎯 PREDICTED: {last_result['pred']} → {last_result['number']}
+🎰 ACTUAL: {actual['n']} ({actual['s']})
+📌 RESULT: {'✅ WIN' if win else '❌ LOSS'}
+━━━━━━━━━━━━━━━━━━━━
+📊 WIN RATE: {win_rate:.1f}% ({total_wins}W/{total_losses}L)
+📉 STREAK: {current_streak}x
+━━━━━━━━━━━━━━━━━━━━
+⚡ BDT BD SHANTO 2K
+"""
+                        send_telegram_message(result_msg)
                     
                     last_result = {"period": period, "pred": pred["s"], "number": pred["n"]}
-                    
-                    current_hour = datetime.now().hour
-                    if current_hour != last_hour:
-                        last_hour = current_hour
-                        
-                        try:
-                            updater.bot.send_message(
-                                chat_id=ADMIN_ID,
-                                text=f"📊 HOURLY REPORT - {current_hour:02d}:00\n"
-                                     f"━━━━━━━━━━━━━━━━━━━━\n"
-                                     f"🔄 Total: {hourly_stats['total']}\n"
-                                     f"✅ Wins: {hourly_stats['win']}\n"
-                                     f"❌ Losses: {hourly_stats['loss']}\n"
-                                     f"📈 Win Rate: {(hourly_stats['win']/hourly_stats['total']*100) if hourly_stats['total'] > 0 else 0:.1f}%\n"
-                                     f"━━━━━━━━━━━━━━━━━━━━\n"
-                                     f"⚡ BDT BD SHANTO 2K",
-                                parse_mode="Markdown"
-                            )
-                        except:
-                            pass
-                        
-                        hourly_stats = {"win": 0, "loss": 0, "total": 0}
-                
-                if len(history) > 100:
-                    history = history[-100:]
-        
+            
+            time.sleep(5)
+            
         except Exception as e:
-            logger.error(f"Auto update error: {e}")
-        
-        time.sleep(2)
-
-# ==================== Main ───
-def main():
-    global updater
-    
-    # Create updater
-    updater = Updater(token=BOT_TOKEN, use_context=True)
-    dp = updater.dispatcher
-    
-    # Add handlers
-    dp.add_handler(CommandHandler("start", start))
-    dp.add_handler(CommandHandler("prediction", prediction))
-    dp.add_handler(CommandHandler("status", status))
-    dp.add_handler(CommandHandler("history", history_cmd))
-    dp.add_handler(CommandHandler("hourly", hourly))
-    dp.add_handler(CommandHandler("help", help_cmd))
-    dp.add_handler(CallbackQueryHandler(button_handler))
-    
-    # Start auto update in background
-    threading.Thread(target=auto_update, daemon=True).start()
-    
-    print("🤖 BDT BD SHANTO 2K Bot Started!")
-    print(f"📌 Bot Token: {BOT_TOKEN[:10]}...")
-    print("⚡ Waiting for commands...")
-    
-    # Start polling
-    updater.start_polling()
-    updater.idle()
+            print(f"Main loop error: {e}")
+            time.sleep(10)
 
 if __name__ == "__main__":
     main()
