@@ -2,7 +2,7 @@ import asyncio
 import aiohttp
 import json
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
 
@@ -354,7 +354,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ─── Auto Update ───
 async def auto_update():
-    global history, hourly_stats, last_hour, current_period, last_result, total_wins, total_losses
+    global history, hourly_stats, last_hour, current_period, last_result, total_wins, total_losses, application
     
     while True:
         try:
@@ -429,8 +429,10 @@ async def auto_update():
 async def main():
     global application
     
+    # Application তৈরি (নতুন স্টাইল)
     application = Application.builder().token(BOT_TOKEN).build()
     
+    # Handlers যোগ করা
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("prediction", prediction))
     application.add_handler(CommandHandler("status", status))
@@ -439,12 +441,14 @@ async def main():
     application.add_handler(CommandHandler("help", help_cmd))
     application.add_handler(CallbackQueryHandler(button_handler))
     
+    # Auto Update শুরু
     asyncio.create_task(auto_update())
     
     print("🤖 BDT BD SHANTO 2K Bot Started!")
     print(f"📌 Bot Token: {BOT_TOKEN[:10]}...")
     print("⚡ Waiting for commands...")
     
+    # Polling শুরু
     await application.run_polling()
 
 if __name__ == "__main__":
