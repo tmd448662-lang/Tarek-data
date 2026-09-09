@@ -11,13 +11,21 @@ import time
 import requests
 import os
 import json
+import logging
 from datetime import datetime
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import threading
 
+# Logging সেটআপ
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
 try:
     from telegram import Bot
-    from telegram.error import TelegramError
+    from telegram.error import TelegramError, TimedOut, NetworkError
 except ImportError:
     print("❌ python-telegram-bot ইনস্টল নেই! রান করুন: pip install python-telegram-bot")
     exit(1)
@@ -42,7 +50,12 @@ def run_dummy_server():
 threading.Thread(target=run_dummy_server, daemon=True).start()
 
 # ==================== 📊 বট ইনিশিয়ালাইজ ====================
-bot = Bot(token=BOT_TOKEN)
+try:
+    bot = Bot(token=BOT_TOKEN)
+    logger.info("✅ বট ইনিশিয়ালাইজেশন সফল!")
+except Exception as e:
+    logger.error(f"❌ বট ইনিশিয়ালাইজেশন ব্যর্থ: {e}")
+    exit(1)
 
 # ==================== গ্লোবাল ভেরিয়েবল ====================
 total_wins = 0
@@ -56,31 +69,36 @@ last_predicted_num = None
 prediction_sent_for_period = {}
 last_result_sent = False
 last_result_period = None
+last_sent_period = None
 
 # ==================== 🧠 অ্যালগরিদম ====================
 def guru_algorithm(period_number):
     """ডিজিটের যোগফল % 10 → BIG (>=5) বা SMALL (<5)"""
-    str_period = str(period_number)
-    digit_sum = 0
-    for ch in str_period:
-        if ch.isdigit():
-            digit_sum += int(ch)
-    
-    remainder = digit_sum % 10
-    is_big = remainder >= 5
-    prediction = "BIG" if is_big else "SMALL"
-    
-    if is_big:
-        confidence = min(95, 70 + remainder * 5)
-    else:
-        confidence = min(95, 70 + (9 - remainder) * 5)
-    
-    return {
-        'prediction': prediction,
-        'number': remainder,
-        'digit_sum': digit_sum,
-        'confidence': confidence
-    }
+    try:
+        str_period = str(period_number)
+        digit_sum = 0
+        for ch in str_period:
+            if ch.isdigit():
+                digit_sum += int(ch)
+        
+        remainder = digit_sum % 10
+        is_big = remainder >= 5
+        prediction = "BIG" if is_big else "SMALL"
+        
+        if is_big:
+            confidence = min(95, 70 + remainder * 5)
+        else:
+            confidence = min(95, 70 + (9 - remainder) * 5)
+        
+        return {
+            'prediction': prediction,
+            'number': remainder,
+            'digit_sum': digit_sum,
+            'confidence': confidence
+        }
+    except Exception as e:
+        logger.error(f"অ্যালগরিদম এরর: {e}")
+        return {'prediction': 'BIG', 'number': 5, 'digit_sum': 0, 'confidence': 50}
 
 # ==================== 📡 API ফেচ ====================
 def fetch_api_data():
@@ -89,17 +107,51 @@ def fetch_api_data():
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
         }
         res = requests.get(API_URL + "?t=" + str(int(time.time() * 1000)), headers=headers, timeout=10)
+        
         if res.status_code == 200:
             data = res.json()
             if data.get('code') == 0 or data.get('success') == True:
-                return data.get("data", {}).get("list", [])
+                list_data = data.get("data", {}).get("list", [])
+                if list_data and len(list_data) > 0:
+                    return list_data
+                else:
+                    logger.warning("API থেকে কোনো ডেটা পাওয়া যায়নি")
             else:
-                print(f"API Error: {data}")
+                logger.warning(f"API এরর রেসপন্স: {data}")
         else:
-            print(f"HTTP Error: {res.status_code}")
+            logger.warning(f"HTTP এরর: {res.status_code}")
+    except requests.exceptions.Timeout:
+        logger.warning("API টাইমআউট")
+    except requests.exceptions.ConnectionError:
+        logger.warning("API কানেকশন এরর")
     except Exception as e:
-        print(f"API Fetch Error: {e}")
+        logger.error(f"API ফেচ এরর: {e}")
+    
     return []
+
+# ==================== 📤 মেসেজ সেন্ড ফাংশন ====================
+async def send_message(text, parse_mode="Markdown", retry_count=3):
+    """মেসেজ পাঠানোর ফাংশন - রিট্রাই সহ"""
+    for attempt in range(retry_count):
+        try:
+            await bot.send_message(chat_id=CHAT_ID, text=text, parse_mode=parse_mode)
+            logger.info("✅ মেসেজ সফলভাবে পাঠানো হয়েছে")
+            return True
+        except TimedOut:
+            logger.warning(f"⏱️ টাইমআউট, রিট্রাই {attempt+1}/{retry_count}")
+            await asyncio.sleep(2)
+        except NetworkError:
+            logger.warning(f"🌐 নেটওয়ার্ক এরর, রিট্রাই {attempt+1}/{retry_count}")
+            await asyncio.sleep(2)
+        except TelegramError as e:
+            logger.error(f"❌ টেলিগ্রাম এরর: {e}")
+            break
+        except Exception as e:
+            logger.error(f"❌ অজানা এরর: {e}")
+            break
+    
+    logger.error("❌ মেসেজ পাঠাতে ব্যর্থ হয়েছে")
+    return False
 
 # ==================== 📊 রিপোর্ট ====================
 async def send_hourly_report():
@@ -126,10 +178,7 @@ async def send_hourly_report():
         f"⚡ *GURU 30s WINGO BOT*"
     )
     
-    try:
-        await bot.send_message(chat_id=CHAT_ID, text=report_msg, parse_mode="Markdown")
-    except Exception as e:
-        print(f"Report send error: {e}")
+    await send_message(report_msg)
 
 # ==================== 🚀 মেইন লুপ ====================
 async def prediction_bot():
@@ -137,147 +186,127 @@ async def prediction_bot():
     global current_streak, best_streak
     global last_predicted_period, last_predicted_signal
     global last_predicted_num, prediction_sent_for_period
-    global last_result_sent, last_result_period
+    global last_result_sent, last_result_period, last_sent_period
 
-    print("🔥 GURU 30s WINGO BIG/SMALL বট স্টার্ট...")
-    print(f"🤖 বট: @rakiiibahmed")
-    print(f"📡 চ্যাট আইডি: {CHAT_ID}")
-    print("📡 মোড: 30s Wingo BIG/SMALL")
-    print("📊 অর্ডার: রেজাল্ট → প্রেডিকশন")
-    print("━━━━━━━━━━━━━━━━━━━━")
+    logger.info("🔥 GURU 30s WINGO BIG/SMALL বট স্টার্ট...")
+    logger.info(f"🤖 বট: @rakiiibahmed")
+    logger.info(f"📡 চ্যাট আইডি: {CHAT_ID}")
+    logger.info("📡 মোড: 30s Wingo BIG/SMALL")
+    logger.info("📊 অর্ডার: রেজাল্ট → প্রেডিকশন")
+    logger.info("━━━━━━━━━━━━━━━━━━━━")
 
     # স্টার্টআপ মেসেজ
-    try:
-        await bot.send_message(
-            chat_id=CHAT_ID,
-            text=(
-                "🔥 *GURU 30s WINGO BIG/SMALL বট* 🔥\n"
-                "━━━━━━━━━━━━━━━━━━━━\n"
-                "🤖 *বট:* @rakiiibahmed\n"
-                "📡 *মোড:* 30s Wingo BIG/SMALL\n"
-                "📊 *অর্ডার:* রেজাল্ট → প্রেডিকশন\n"
-                "━━━━━━━━━━━━━━━━━━━━\n"
-                "⏳ প্রথম সিগন্যালের জন্য অপেক্ষা..."
-            ),
-            parse_mode="Markdown"
-        )
-        print("✅ স্টার্টআপ মেসেজ পাঠানো হয়েছে")
-    except Exception as e:
-        print(f"❌ স্টার্টআপ মেসেজ পাঠাতে ব্যর্থ: {e}")
+    startup_msg = (
+        "🔥 *GURU 30s WINGO BIG/SMALL বট* 🔥\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        "🤖 *বট:* @rakiiibahmed\n"
+        "📡 *মোড:* 30s Wingo BIG/SMALL\n"
+        "📊 *অর্ডার:* রেজাল্ট → প্রেডিকশন\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        "⏳ প্রথম সিগন্যালের জন্য অপেক্ষা..."
+    )
+    
+    await send_message(startup_msg)
 
     last_hour_time = time.time()
-    last_period = None
     no_data_count = 0
+    consecutive_fails = 0
 
     while True:
         try:
-            # 30 সেকেন্ড ওয়েট
             current_sec = int(time.time()) % 30
-            sleep_time = 30 - current_sec + 1
+            sleep_time = 30 - current_sec + 2
             await asyncio.sleep(sleep_time)
 
-            # API থেকে ডেটা ফেচ
+            logger.info("📡 API থেকে ডেটা নেওয়া হচ্ছে...")
             raw_list = fetch_api_data()
             
             if not raw_list:
                 no_data_count += 1
-                if no_data_count >= 3:
-                    print("⚠️ বারবার API ফেইল, রিট্রাই করা হচ্ছে...")
-                    await asyncio.sleep(2)
-                    continue
-                else:
-                    continue
+                consecutive_fails += 1
+                if consecutive_fails >= 5:
+                    logger.error("❌ পরপর ৫ বার API ফেইল, ১০ সেকেন্ড অপেক্ষা...")
+                    await asyncio.sleep(10)
+                    consecutive_fails = 0
+                continue
             else:
                 no_data_count = 0
+                consecutive_fails = 0
 
             latest = raw_list[0]
             latest_issue = str(latest.get('issueNumber', ''))
             
-            # issueNumber ঠিক আছে কিনা চেক
             if not latest_issue or not latest_issue.isdigit():
-                print(f"⚠️ ইনভ্যালিড ইস্যু: {latest_issue}")
+                logger.warning(f"⚠️ ইনভ্যালিড ইস্যু: {latest_issue}")
                 continue
                 
             actual_num = int(latest.get('number', 0))
             actual_type = "BIG" if actual_num >= 5 else "SMALL"
 
-            print(f"📡 পিরিয়ড: {latest_issue}, নাম্বার: {actual_num} ({actual_type})")
+            logger.info(f"📡 পিরিয়ড: {latest_issue}, নাম্বার: {actual_num} ({actual_type})")
 
             # ============================================================
             # 🔥 রেজাল্ট চেক (প্রথমে রেজাল্ট)
             # ============================================================
-            if last_predicted_period and last_predicted_period == latest_issue:
-                if not last_result_sent:
-                    is_win = (last_predicted_signal == actual_type)
-                    
-                    if is_win:
-                        total_wins += 1
-                        current_streak += 1
-                        if current_streak > best_streak:
-                            best_streak = current_streak
-                        status = "✅ জয় 🎉"
-                        status_emoji = "🟢"
-                    else:
-                        total_losses += 1
-                        current_streak = -1 if current_streak < 0 else 0
-                        status = "❌ হার"
-                        status_emoji = "🔴"
+            if last_predicted_period and last_predicted_period == latest_issue and not last_result_sent:
+                is_win = (last_predicted_signal == actual_type)
+                
+                if is_win:
+                    total_wins += 1
+                    current_streak += 1
+                    if current_streak > best_streak:
+                        best_streak = current_streak
+                    status = "✅ জয় 🎉"
+                else:
+                    total_losses += 1
+                    current_streak = -1 if current_streak < 0 else 0
+                    status = "❌ হার"
 
-                    total_rounds += 1
-                    win_rate = (total_wins / total_rounds * 100) if total_rounds > 0 else 0
+                total_rounds += 1
+                win_rate = (total_wins / total_rounds * 100) if total_rounds > 0 else 0
 
-                    # লেভেল ক্যালকুলেশন
-                    level = min(10, max(1, current_streak + 1)) if current_streak >= 0 else 1
-                    multiplier = f"{level}x"
+                level = min(10, max(1, current_streak + 1)) if current_streak >= 0 else 1
+                multiplier = f"{level}x"
 
-                    # রেজাল্ট মেসেজ
-                    result_msg = (
-                        f"🎯 *রেজাল্ট আপডেট*\n"
-                        f"━━━━━━━━━━━━━━━━━━━━\n"
-                        f"🆔 পিরিয়ড: `#{latest_issue[-5:]}`\n"
-                        f"━━━━━━━━━━━━━━━━━━━━\n"
-                        f"🔮 *প্রেডিকশন:* `{last_predicted_signal}` → `{last_predicted_num}`\n"
-                        f"🎰 *একচুয়াল:* `{actual_num}` → `{actual_type}`\n"
-                        f"📌 *রেজাল্ট:* `{status}`\n"
-                        f"━━━━━━━━━━━━━━━━━━━━\n"
-                        f"📊 *জয়ের হার:* `{win_rate:.1f}%` ({total_wins}W/{total_losses}L)\n"
-                        f"🔥 *স্ট্রিক:* `{current_streak:+d}`\n"
-                        f"📈 *লেভেল:* `{level}` ({multiplier})\n"
-                        f"━━━━━━━━━━━━━━━━━━━━\n"
-                        f"⚡ *GURU 30s WINGO BOT*"
-                    )
+                result_msg = (
+                    f"🎯 *রেজাল্ট আপডেট*\n"
+                    f"━━━━━━━━━━━━━━━━━━━━\n"
+                    f"🆔 পিরিয়ড: `#{latest_issue[-5:]}`\n"
+                    f"━━━━━━━━━━━━━━━━━━━━\n"
+                    f"🔮 *প্রেডিকশন:* `{last_predicted_signal}` → `{last_predicted_num}`\n"
+                    f"🎰 *একচুয়াল:* `{actual_num}` → `{actual_type}`\n"
+                    f"📌 *রেজাল্ট:* `{status}`\n"
+                    f"━━━━━━━━━━━━━━━━━━━━\n"
+                    f"📊 *জয়ের হার:* `{win_rate:.1f}%` ({total_wins}W/{total_losses}L)\n"
+                    f"🔥 *স্ট্রিক:* `{current_streak:+d}`\n"
+                    f"📈 *লেভেল:* `{level}` ({multiplier})\n"
+                    f"━━━━━━━━━━━━━━━━━━━━\n"
+                    f"⚡ *GURU 30s WINGO BOT*"
+                )
 
-                    try:
-                        await bot.send_message(chat_id=CHAT_ID, text=result_msg, parse_mode="Markdown")
-                        print(f"✅ রেজাল্ট পাঠানো হয়েছে: {latest_issue} → {'জয়' if is_win else 'হার'}")
-                    except Exception as e:
-                        print(f"❌ রেজাল্ট পাঠাতে ব্যর্থ: {e}")
+                await send_message(result_msg)
+                last_result_sent = True
+                last_result_period = latest_issue
+                logger.info(f"✅ রেজাল্ট পাঠানো হয়েছে: {latest_issue} → {'জয়' if is_win else 'হার'}")
 
-                    last_result_sent = True
-                    last_result_period = latest_issue
-
-                    # প্রতি ঘন্টায় রিপোর্ট
-                    if time.time() - last_hour_time >= 3600:
-                        await send_hourly_report()
-                        # রিসেট
-                        total_wins = 0
-                        total_losses = 0
-                        total_rounds = 0
-                        current_streak = 0
-                        best_streak = 0
-                        last_hour_time = time.time()
+                # প্রতি ঘন্টায় রিপোর্ট
+                if time.time() - last_hour_time >= 3600:
+                    await send_hourly_report()
+                    total_wins = 0
+                    total_losses = 0
+                    total_rounds = 0
+                    current_streak = 0
+                    best_streak = 0
+                    last_hour_time = time.time()
 
             # ============================================================
-            # 🔥 নতুন প্রেডিকশন (শুধু যদি নতুন পিরিয়ড হয়)
+            # 🔥 নতুন প্রেডিকশন
             # ============================================================
             next_period = str(int(latest_issue) + 1)
             
-            # চেক করুন যে এই পিরিয়ডের জন্য প্রেডিকশন ইতিমধ্যে পাঠানো হয়েছে কিনা
-            if next_period not in prediction_sent_for_period or prediction_sent_for_period[next_period] == False:
-                # নতুন পিরিয়ড, প্রেডিকশন পাঠান
+            if next_period not in prediction_sent_for_period or not prediction_sent_for_period[next_period]:
                 pred = guru_algorithm(next_period)
 
-                # কনফিডেন্স অনুযায়ী রেকমেন্ডেশন
                 if pred['confidence'] >= 80:
                     rec = "🔥 হাই কনফিডেন্স - নরমাল বেট"
                 elif pred['confidence'] >= 65:
@@ -302,27 +331,22 @@ async def prediction_bot():
                     f"⚡ *GURU 30s WINGO BOT*"
                 )
 
-                # সেভ করুন
                 last_predicted_period = next_period
                 last_predicted_signal = pred['prediction']
                 last_predicted_num = pred['number']
                 prediction_sent_for_period[next_period] = True
                 last_result_sent = False
 
-                try:
-                    await bot.send_message(chat_id=CHAT_ID, text=prediction_msg, parse_mode="Markdown")
-                    print(f"✅ প্রেডিকশন: {next_period} → {pred['prediction']} ({pred['number']})")
-                except Exception as e:
-                    print(f"❌ প্রেডিকশন পাঠাতে ব্যর্থ: {e}")
+                await send_message(prediction_msg)
+                logger.info(f"✅ প্রেডিকশন: {next_period} → {pred['prediction']} ({pred['number']})")
 
-                # পুরনো পিরিয়ড ক্লিয়ার (শুধু সর্বশেষ ৫টি রাখুন)
                 if len(prediction_sent_for_period) > 5:
                     oldest = min(prediction_sent_for_period.keys())
                     del prediction_sent_for_period[oldest]
 
         except Exception as e:
-            print(f"❌ লুপ এরর: {e}")
-            await asyncio.sleep(3)
+            logger.error(f"❌ লুপ এরর: {e}")
+            await asyncio.sleep(5)
 
 # ==================== 🚀 স্টার্ট ====================
 if __name__ == '__main__':
@@ -333,4 +357,10 @@ if __name__ == '__main__':
     print("📡 মোড: 30s Wingo BIG/SMALL")
     print("📊 অর্ডার: রেজাল্ট → প্রেডিকশন")
     print("━━━━━━━━━━━━━━━━━━━━")
-    asyncio.run(prediction_bot())
+    
+    try:
+        asyncio.run(prediction_bot())
+    except KeyboardInterrupt:
+        print("\n👋 বট বন্ধ করা হয়েছে")
+    except Exception as e:
+        print(f"❌ ফাটাল এরর: {e}")
