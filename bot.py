@@ -6,7 +6,7 @@ import aiohttp
 import json
 import logging
 from datetime import datetime
-from telegram import Bot, Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
 import os
 import time
@@ -19,7 +19,7 @@ BOT_TOKEN = "8386058038:AAEwayH-C4AUr7L_tx6Ecz__xpIXnrekJw0"
 API_URL = "https://api.bdg88zf.com/api/webapi/GetGameIssue"
 ADMIN_ID = 5012028880
 
-# ==================== LOGIC ম্যাপিং ───
+# ==================== LOGIC ───
 LOGIC = {
     0: {"n": "5", "s": "BIG"},
     1: {"n": "2", "s": "SMALL"},
@@ -33,7 +33,7 @@ LOGIC = {
     9: {"n": "1", "s": "SMALL"}
 }
 
-# ==================== ডেটা স্টোর ───
+# ==================== ডেটা ───
 history = []
 win_streak = 0
 loss_streak = 0
@@ -148,7 +148,7 @@ def format_result_message(period, pred, actual, win):
     """
     return message
 
-# ==================== Telegram Handlers ───
+# ==================== Handlers ───
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     welcome_text = f"""
