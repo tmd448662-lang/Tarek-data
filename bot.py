@@ -28,14 +28,18 @@ def rgb_algorithm(period):
     idx = int(str(period)[-3:]) % 12
     return RGB_PATTERN[idx]
 
-# ==================== ২. SHANTO (মার্কভ চেইন) ───
-def shanto_algorithm(last_results):
+# ==================== ২. SHANTO (মার্কভ চেইন + অফসেট) ───
+def shanto_algorithm(last_results, period):
+    # প্রথমে RGB থেকে প্রেডিকশন নিই
+    rgb_pred = rgb_algorithm(period)
+    
     if len(last_results) < 2:
-        return {"s": "BIG", "n": "7"}
+        return rgb_pred
     
     last1 = last_results[-1]
     last2 = last_results[-2]
     
+    # মার্কভ চেইন লজিক
     if last1 == "SMALL" and last2 == "SMALL":
         return {"s": "BIG", "n": "8"}
     elif last1 == "BIG" and last2 == "BIG":
@@ -44,7 +48,9 @@ def shanto_algorithm(last_results):
         return {"s": "BIG", "n": "7"}
     elif last1 == "BIG" and last2 == "SMALL":
         return {"s": "SMALL", "n": "4"}
-    return {"s": "BIG", "n": "7"}
+    
+    # কোন প্যাটার্ন না মিললে RGB ফলো করবে
+    return rgb_pred
 
 # ==================== ডেটা ───
 total_wins = 0
@@ -236,7 +242,7 @@ def main():
                     
                     # 🧠 ২টি অ্যালগরিদম
                     rgb_pred = rgb_algorithm(next_period)
-                    shanto_pred = shanto_algorithm(last_results)
+                    shanto_pred = shanto_algorithm(last_results, next_period)
                     
                     # ✅ ম্যাচ চেক
                     if rgb_pred["s"] == shanto_pred["s"]:
