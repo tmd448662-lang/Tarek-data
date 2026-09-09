@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-🔥 GURU 30s WINGO BIG/SMALL বট - DNS ফিক্সড
+🔥 GURU 30s WINGO BIG/SMALL বট - API ফিক্সড
 🤖 @rakiiibahmed
 """
 
@@ -32,10 +32,13 @@ except ImportError:
 BOT_TOKEN = "8386058038:AAEwayH-C4AUr7L_tx6Ecz__xpIXnrekJw0"
 CHAT_ID = "5012028880"
 
-# ✅ শুধু সঠিক URL (art-lottery01.com বাদ)
+# ✅ একাধিক API URL চেষ্টা করবে
 API_URLS = [
     "https://draw.ar-lottery01.com/WinGo/WinGo_30s/GetHistoryIssuePage.json",
     "https://api.ar-lottery01.com/WinGo/WinGo_30s/GetHistoryIssuePage.json",
+    "https://wingo.ar-lottery01.com/WinGo/WinGo_30s/GetHistoryIssuePage.json",
+    "https://api.art-lottery01.com/WinGo/WinGo_30s/GetHistoryIssuePage.json",
+    "https://draw.art-lottery01.com/WinGo/WinGo_30s/GetHistoryIssuePage.json",
 ]
 
 # ==================== 🌐 ওয়েব সার্ভার ====================
@@ -130,10 +133,6 @@ def fetch_api_data():
                     logger.warning(f"⚠️ {api_url} → ডেটা খালি")
             else:
                 logger.warning(f"⚠️ {api_url} → HTTP {res.status_code}")
-        except requests.exceptions.ConnectionError as e:
-            logger.warning(f"⚠️ {api_url} → Connection Error: {e}")
-        except requests.exceptions.Timeout as e:
-            logger.warning(f"⚠️ {api_url} → Timeout: {e}")
         except Exception as e:
             logger.warning(f"⚠️ {api_url} → এরর: {e}")
     
