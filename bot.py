@@ -66,11 +66,20 @@ except Exception as e:
     exit(1)
 
 # ==================== গ্লোবাল ভেরিয়েবল ====================
+# ✅ মোট স্ট্যাটস (কখনো রিসেট হবে না)
 total_wins = 0
 total_losses = 0
 total_rounds = 0
 current_streak = 0
-best_streak = 0
+best_win_streak = 0
+worst_loss_streak = 0
+
+# ✅ hourly স্ট্যাটস (প্রতি ঘন্টায় রিসেট হবে)
+hourly_wins = 0
+hourly_losses = 0
+hourly_rounds = 0
+hourly_best_win_streak = 0
+hourly_worst_loss_streak = 0
 
 last_predicted_period = None
 last_predicted_signal = None
@@ -163,35 +172,54 @@ async def send_message(text, parse_mode="Markdown", retry_count=3):
 
 # ==================== 📊 হাওয়ারলি রিপোর্ট ====================
 async def send_hourly_report():
-    global total_wins, total_losses, total_rounds, current_streak, best_streak
+    global hourly_wins, hourly_losses, hourly_rounds
+    global hourly_best_win_streak, hourly_worst_loss_streak
+    global total_wins, total_losses, total_rounds
+    global best_win_streak, worst_loss_streak
     
-    if total_rounds == 0:
+    if hourly_rounds == 0:
         return
     
-    win_rate = (total_wins / total_rounds * 100) if total_rounds > 0 else 0
+    hourly_win_rate = (hourly_wins / hourly_rounds * 100) if hourly_rounds > 0 else 0
+    total_win_rate = (total_wins / total_rounds * 100) if total_rounds > 0 else 0
     
     report_msg = (
         f"📊 *আওয়ারলি রিপোর্ট - RGB HACK 3M*\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
         f"🕐 *সময়:* {datetime.now().strftime('%I:%M %p')}\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
-        f"🔄 *মোট রাউন্ড:* `{total_rounds}`\n"
-        f"✅ *জয়:* `{total_wins}`\n"
-        f"❌ *হার:* `{total_losses}`\n"
-        f"📈 *জয়ের হার:* `{win_rate:.1f}%`\n"
+        f"🔄 *এই ঘন্টায় রাউন্ড:* `{hourly_rounds}`\n"
+        f"✅ *এই ঘন্টায় জয়:* `{hourly_wins}`\n"
+        f"❌ *এই ঘন্টায় হার:* `{hourly_losses}`\n"
+        f"📈 *এই ঘন্টায় হার:* `{hourly_win_rate:.1f}%`\n"
+        f"🔥 *এই ঘন্টায় সেরা জয় স্ট্রিক:* `{hourly_best_win_streak}x`\n"
+        f"📉 *এই ঘন্টায় সেরা হার স্ট্রিক:* `{hourly_worst_loss_streak}x`\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
-        f"🔥 *সেরা স্ট্রিক:* `{best_streak}x`\n"
-        f"📉 *বর্তমান স্ট্রিক:* `{current_streak:+d}`\n"
+        f"📊 *মোট রাউন্ড:* `{total_rounds}`\n"
+        f"✅ *মোট জয়:* `{total_wins}`\n"
+        f"❌ *মোট হার:* `{total_losses}`\n"
+        f"📈 *মোট জয়ের হার:* `{total_win_rate:.1f}%`\n"
+        f"🔥 *সেরা জয় স্ট্রিক:* `{best_win_streak}x`\n"
+        f"📉 *সেরা হার স্ট্রিক:* `{worst_loss_streak}x`\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
         f"🤖 @Tarek3o"
     )
     
     await send_message(report_msg)
+    
+    # ✅ শুধু hourly স্ট্যাটস রিসেট হবে, মোট নয়
+    hourly_wins = 0
+    hourly_losses = 0
+    hourly_rounds = 0
+    hourly_best_win_streak = 0
+    hourly_worst_loss_streak = 0
 
 # ==================== 🚀 মেইন লুপ ====================
 async def prediction_bot():
     global total_wins, total_losses, total_rounds
-    global current_streak, best_streak
+    global hourly_wins, hourly_losses, hourly_rounds
+    global hourly_best_win_streak, hourly_worst_loss_streak
+    global current_streak, best_win_streak, worst_loss_streak
     global last_predicted_period, last_predicted_signal
     global last_predicted_num, prediction_sent_for_period
     global last_result_sent, last_result_period
@@ -245,18 +273,43 @@ async def prediction_bot():
                 
                 if is_win:
                     total_wins += 1
-                    current_streak += 1
-                    if current_streak > best_streak:
-                        best_streak = current_streak
+                    hourly_wins += 1
+                    
+                    if current_streak >= 0:
+                        current_streak += 1
+                    else:
+                        current_streak = 1
+                    
+                    # best win streak আপডেট
+                    if current_streak > best_win_streak:
+                        best_win_streak = current_streak
+                    if current_streak > hourly_best_win_streak:
+                        hourly_best_win_streak = current_streak
+                    
                     status = "✅ জয় 🎉"
                 else:
                     total_losses += 1
-                    current_streak = 0
+                    hourly_losses += 1
+                    
+                    if current_streak <= 0:
+                        current_streak -= 1
+                    else:
+                        current_streak = -1
+                    
+                    # worst loss streak আপডেট
+                    if abs(current_streak) > worst_loss_streak:
+                        worst_loss_streak = abs(current_streak)
+                    if abs(current_streak) > hourly_worst_loss_streak:
+                        hourly_worst_loss_streak = abs(current_streak)
+                    
                     status = "❌ হার"
 
                 total_rounds += 1
-                win_rate = (total_wins / total_rounds * 100) if total_rounds > 0 else 0
+                hourly_rounds += 1
+                
+                total_win_rate = (total_wins / total_rounds * 100) if total_rounds > 0 else 0
                 level = min(10, max(1, current_streak + 1)) if current_streak >= 0 else 1
+                streak_emoji = "🔥" if current_streak > 0 else "📉" if current_streak < 0 else "⏸️"
 
                 result_msg = (
                     f"🎯 *রেজাল্ট আপডেট*\n"
@@ -267,8 +320,8 @@ async def prediction_bot():
                     f"🎰 *একচুয়াল:* `{actual_num}` → `{actual_type}`\n"
                     f"📌 *রেজাল্ট:* `{status}`\n"
                     f"━━━━━━━━━━━━━━━━━━━━\n"
-                    f"📊 *জয়ের হার:* `{win_rate:.1f}%` ({total_wins}W/{total_losses}L)\n"
-                    f"🔥 *স্ট্রিক:* `{current_streak:+d}`\n"
+                    f"📊 *জয়ের হার:* `{total_win_rate:.1f}%` ({total_wins}W/{total_losses}L)\n"
+                    f"{streak_emoji} *স্ট্রিক:* `{current_streak:+d}`\n"
                     f"📈 *লেভেল:* `{level}` ({level}x)\n"
                     f"━━━━━━━━━━━━━━━━━━━━\n"
                     f"🤖 @Tarek3o"
@@ -279,13 +332,9 @@ async def prediction_bot():
                 last_result_period = latest_issue
                 logger.info(f"✅ রেজাল্ট পাঠানো হয়েছে: {latest_issue}")
 
+                # প্রতি ঘন্টায় রিপোর্ট (রিসেট হবে না)
                 if time.time() - last_hour_time >= 3600:
                     await send_hourly_report()
-                    total_wins = 0
-                    total_losses = 0
-                    total_rounds = 0
-                    current_streak = 0
-                    best_streak = 0
                     last_hour_time = time.time()
 
             # ===== নতুন প্রেডিকশন (RGB HACK) =====
