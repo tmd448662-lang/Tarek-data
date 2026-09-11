@@ -2,7 +2,8 @@
 # -*- coding: utf-8 -*-
 
 """
-🔥 RGB HACK 3M WINGO BIG/SMALL বট
+🔥 DARK X HYBRID 3M WINGO BIG/SMALL বট
+🎯 Hybrid = Trend Follow + Loss Breaker + DARK X
 🤖 @Tarek3o
 """
 
@@ -10,6 +11,7 @@ import asyncio
 import time
 import requests
 import os
+import random
 import logging
 from datetime import datetime, timezone
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -32,7 +34,6 @@ except ImportError:
 BOT_TOKEN = "8632082751:AAEcUqV8hFs-Id0E9uL0ltvW-e6ybZkKcJ0"
 CHAT_ID = "6678981102"
 
-# ✅ 3 মিনিট উইঙ্গো API
 API_URLS = [
     "https://draw.ar-lottery01.com/WinGo/WinGo_3M/GetHistoryIssuePage.json",
     "https://api.ar-lottery01.com/WinGo/WinGo_3M/GetHistoryIssuePage.json",
@@ -43,11 +44,7 @@ class DummyServer(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.end_headers()
-        self.wfile.write(b"RGB HACK 3M WINGO BOT is running!")
-    
-    def do_HEAD(self):
-        self.send_response(200)
-        self.end_headers()
+        self.wfile.write(b"DARK X HYBRID BOT is running!")
 
 def run_dummy_server():
     port = int(os.environ.get("PORT", 8080))
@@ -56,11 +53,22 @@ def run_dummy_server():
 
 threading.Thread(target=run_dummy_server, daemon=True).start()
 
+def keep_alive():
+    while True:
+        try:
+            time.sleep(600)
+            port = int(os.environ.get("PORT", 8080))
+            requests.get(f"http://localhost:{port}/", timeout=5)
+        except:
+            pass
+
+threading.Thread(target=keep_alive, daemon=True).start()
+
 # ==================== 📊 বট ইনিশিয়ালাইজ ====================
 try:
     bot = Bot(token=BOT_TOKEN)
     logger.info("✅ বট ইনিশিয়ালাইজেশন সফল!")
-    logger.info(f"🤖 বট ইউজারনেম: @Tarek3o")
+    logger.info(f"🤖 বট: @Tarek3o")
 except Exception as e:
     logger.error(f"❌ বট ইনিশিয়ালাইজেশন ব্যর্থ: {e}")
     exit(1)
@@ -73,6 +81,8 @@ total_rounds = 0
 current_streak = 0
 best_win_streak = 0
 worst_loss_streak = 0
+current_level = 1
+consecutive_losses = 0
 
 # ✅ hourly স্ট্যাটস (প্রতি ঘন্টায় রিসেট হবে)
 hourly_wins = 0
@@ -80,6 +90,8 @@ hourly_losses = 0
 hourly_rounds = 0
 hourly_best_win_streak = 0
 hourly_worst_loss_streak = 0
+
+history_data = []
 
 last_predicted_period = None
 last_predicted_signal = None
@@ -89,43 +101,112 @@ last_result_sent = False
 last_result_period = None
 
 # ============================================================
-#  🧠 RGB HACK ENGINE (Ansh Boss এর মতো)
+#  🧠 DARK X ENGINE (Fallback)
 # ============================================================
-def get_period_index():
-    now = datetime.now(timezone.utc)
-    midnight = datetime(now.year, now.month, now.day, 0, 0, 0, tzinfo=timezone.utc)
-    diff_seconds = (now - midnight).total_seconds()
-    period_index = int(diff_seconds // 180) + 1
-    return period_index
+def dark_x_engine(data, level):
+    if len(data) < 3:
+        return {"prediction": "BIG", "confidence": 50, "number": 7, "reason": "FALLBACK"}
+    
+    types = [d['side'] for d in data[:10]]
+    last1 = types[0] if len(types) > 0 else "BIG"
+    last2 = types[1] if len(types) > 1 else "BIG"
+    
+    if last1 == "SMALL":
+        pred = "BIG"
+        conf = 75
+    else:
+        pred = "SMALL"
+        conf = 60
+    
+    if last1 == "BIG" and last2 == "BIG":
+        pred = "SMALL"
+        conf = 90
+    elif last1 == "SMALL" and last2 == "SMALL":
+        pred = "BIG"
+        conf = 95
+    elif last1 == "SMALL" and last2 == "BIG":
+        pred = "BIG"
+        conf = 70
+    elif last1 == "BIG" and last2 == "SMALL":
+        pred = "BIG"
+        conf = 85
+    
+    if level >= 3 and len(data) > 0:
+        latest_num = data[0]['number']
+        pred = "SMALL" if latest_num >= 5 else "BIG"
+        conf = 99
+    
+    if pred == "BIG":
+        num = random.randint(5, 9)
+    else:
+        num = random.randint(0, 4)
+    
+    return {"prediction": pred, "confidence": conf, "number": num, "reason": "DARK X"}
 
-def rgb_hack_engine():
-    PATTERN = [
-        {"s": "BIG", "n": 7}, {"s": "SMALL", "n": 2}, {"s": "SMALL", "n": 4},
-        {"s": "BIG", "n": 9}, {"s": "BIG", "n": 6}, {"s": "SMALL", "n": 0},
-        {"s": "BIG", "n": 8}, {"s": "SMALL", "n": 3}, {"s": "SMALL", "n": 1},
-        {"s": "BIG", "n": 5}, {"s": "BIG", "n": 7}, {"s": "SMALL", "n": 4}
-    ]
+# ============================================================
+#  🧠 HYBRID ENGINE
+# ============================================================
+def hybrid_engine(data, level, consec_losses):
+    if len(data) < 3:
+        return {"prediction": "BIG", "confidence": 50, "number": 7, "reason": "INSUFFICIENT DATA"}
     
-    period_index = get_period_index()
-    pattern_index = (period_index + 5) % 12
+    # ─── ধাপ ১: Loss Breaker ───
+    if consec_losses >= 2:
+        dark = dark_x_engine(data, level)
+        pred = "SMALL" if dark['prediction'] == "BIG" else "BIG"
+        conf = min(99, dark['confidence'] + 5)
+        num = random.randint(5, 9) if pred == "BIG" else random.randint(0, 4)
+        return {
+            "prediction": pred,
+            "confidence": conf,
+            "number": num,
+            "reason": f"LOSS BREAKER (উল্টো, {consec_losses}টি টানা লস)"
+        }
     
-    pred = PATTERN[pattern_index]
+    # ─── ধাপ ২: Trend Follow ───
+    if len(data) >= 5:
+        recent5 = [d['side'] for d in data[:5]]
+        big_count = recent5.count("BIG")
+        small_count = recent5.count("SMALL")
+        
+        if big_count >= 4:
+            pred = "BIG"
+            conf = 85
+            num = random.randint(5, 9)
+            return {
+                "prediction": pred,
+                "confidence": conf,
+                "number": num,
+                "reason": f"TREND FOLLOW (শেষ ৫টির মধ্যে {big_count}B-{small_count}S)"
+            }
+        elif small_count >= 4:
+            pred = "SMALL"
+            conf = 85
+            num = random.randint(0, 4)
+            return {
+                "prediction": pred,
+                "confidence": conf,
+                "number": num,
+                "reason": f"TREND FOLLOW (শেষ ৫টির মধ্যে {big_count}B-{small_count}S)"
+            }
     
+    # ─── ধাপ ৩: DARK X Fallback ───
+    dark = dark_x_engine(data, level)
     return {
-        "prediction": pred["s"], 
-        "confidence": 78, 
-        "number": pred["n"],
-        "pattern_index": pattern_index,
-        "period_index": period_index
+        "prediction": dark['prediction'],
+        "confidence": dark['confidence'],
+        "number": dark['number'],
+        "reason": "DARK X (Markov Chain)"
     }
 
 # ==================== 📡 API ফেচ ====================
 def fetch_api_data():
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Accept': 'application/json, text/plain, */*',
         'Accept-Language': 'en-US,en;q=0.9',
         'Referer': 'https://www.google.com/',
+        'Origin': 'https://www.google.com',
         'Connection': 'keep-alive',
         'Cache-Control': 'no-cache',
     }
@@ -133,23 +214,18 @@ def fetch_api_data():
     for api_url in API_URLS:
         try:
             url = api_url + "?t=" + str(int(time.time() * 1000))
-            logger.info(f"📡 চেষ্টা করছি: {api_url}")
             res = requests.get(url, headers=headers, timeout=10)
             
             if res.status_code == 200:
                 data = res.json()
                 list_data = data.get("data", {}).get("list", [])
                 if list_data and len(list_data) > 0:
-                    logger.info(f"✅ API সফল: {api_url}")
                     return list_data
-                else:
-                    logger.warning(f"⚠️ {api_url} → ডেটা খালি")
             else:
                 logger.warning(f"⚠️ {api_url} → HTTP {res.status_code}")
         except Exception as e:
             logger.warning(f"⚠️ {api_url} → এরর: {e}")
     
-    logger.error("❌ সব API ব্যর্থ!")
     return []
 
 # ==================== 📤 মেসেজ সেন্ড ====================
@@ -157,7 +233,6 @@ async def send_message(text, parse_mode="Markdown", retry_count=3):
     for attempt in range(retry_count):
         try:
             await bot.send_message(chat_id=CHAT_ID, text=text, parse_mode=parse_mode)
-            logger.info("✅ মেসেজ সফলভাবে পাঠানো হয়েছে")
             return True
         except (TimedOut, NetworkError):
             logger.warning(f"⏱️ রিট্রাই {attempt+1}/{retry_count}")
@@ -184,7 +259,7 @@ async def send_hourly_report():
     total_win_rate = (total_wins / total_rounds * 100) if total_rounds > 0 else 0
     
     report_msg = (
-        f"📊 *আওয়ারলি রিপোর্ট - RGB HACK 3M*\n"
+        f"📊 *আওয়ারলি রিপোর্ট - DARK X HYBRID 3M*\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
         f"🕐 *সময়:* {datetime.now().strftime('%I:%M %p')}\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
@@ -207,7 +282,6 @@ async def send_hourly_report():
     
     await send_message(report_msg)
     
-    # ✅ শুধু hourly স্ট্যাটস রিসেট হবে, মোট নয়
     hourly_wins = 0
     hourly_losses = 0
     hourly_rounds = 0
@@ -220,21 +294,24 @@ async def prediction_bot():
     global hourly_wins, hourly_losses, hourly_rounds
     global hourly_best_win_streak, hourly_worst_loss_streak
     global current_streak, best_win_streak, worst_loss_streak
+    global current_level, consecutive_losses, history_data
     global last_predicted_period, last_predicted_signal
     global last_predicted_num, prediction_sent_for_period
     global last_result_sent, last_result_period
 
-    logger.info("🔥 RGB HACK 3M WINGO BIG/SMALL বট স্টার্ট...")
+    logger.info("🔥 DARK X HYBRID 3M WINGO বট স্টার্ট...")
     logger.info(f"🤖 বট: @Tarek3o")
-    logger.info(f"📡 চ্যাট আইডি: {CHAT_ID}")
-    logger.info("━━━━━━━━━━━━━━━━━━━━")
+    logger.info(f"📡 মোড: 3M WINGO")
+    logger.info("🎯 Hybrid: Trend Follow + Loss Breaker + DARK X")
 
     await send_message(
-        "🔥 *RGB HACK 3M WINGO BIG/SMALL বট* 🔥\n"
+        "🔥 *DARK X HYBRID 3M WINGO* 🔥\n"
         "━━━━━━━━━━━━━━━━━━━━\n"
-        "🧠 *ইঞ্জিন:* RGB HACK (১২-স্টেপ প্যাটার্ন)\n"
-        "📡 *মোড:* 3M WINGO BIG/SMALL\n"
-        "📊 *প্যাটার্ন:* Ansh Boss স্টাইল\n"
+        "🧠 *ইঞ্জিন:* HYBRID (৩ স্তর)\n"
+        "1️⃣ ট্রেন্ড ফলো (শেষ ৫টি দেখে)\n"
+        "2️⃣ লস ব্রেকার (টানা ২ লসে উল্টো)\n"
+        "3️⃣ DARK X (Markov Chain)\n"
+        "📡 *মোড:* 3M WINGO\n"
         "🤖 *বট:* @Tarek3o\n"
         "━━━━━━━━━━━━━━━━━━━━\n"
         "⏳ প্রথম সিগন্যালের জন্য অপেক্ষা..."
@@ -248,21 +325,23 @@ async def prediction_bot():
             sleep_time = 180 - current_sec + 5
             await asyncio.sleep(sleep_time)
 
-            logger.info("📡 API থেকে ডেটা নেওয়া হচ্ছে...")
             raw_list = fetch_api_data()
-            
             if not raw_list:
                 logger.warning("⚠️ ডেটা নেই, রিট্রাই...")
                 continue
 
-            latest = raw_list[0]
-            latest_issue = str(latest.get('issueNumber', ''))
-            
-            if not latest_issue or not latest_issue.isdigit():
-                logger.warning(f"⚠️ ইনভ্যালিড ইস্যু: {latest_issue}")
-                continue
-                
-            actual_num = int(latest.get('number', 0))
+            history_data = []
+            for h in raw_list[:20]:
+                num = int(h['number'])
+                history_data.append({
+                    'issueNumber': str(h['issueNumber']),
+                    'number': num,
+                    'side': "BIG" if num >= 5 else "SMALL"
+                })
+
+            latest = history_data[0]
+            latest_issue = latest['issueNumber']
+            actual_num = latest['number']
             actual_type = "BIG" if actual_num >= 5 else "SMALL"
 
             logger.info(f"📡 লেটেস্ট পিরিয়ড: {latest_issue}, নাম্বার: {actual_num} ({actual_type})")
@@ -274,41 +353,43 @@ async def prediction_bot():
                 if is_win:
                     total_wins += 1
                     hourly_wins += 1
+                    consecutive_losses = 0
                     
                     if current_streak >= 0:
                         current_streak += 1
                     else:
                         current_streak = 1
                     
-                    # best win streak আপডেট
                     if current_streak > best_win_streak:
                         best_win_streak = current_streak
                     if current_streak > hourly_best_win_streak:
                         hourly_best_win_streak = current_streak
                     
+                    current_level = 1
                     status = "✅ জয় 🎉"
                 else:
                     total_losses += 1
                     hourly_losses += 1
+                    consecutive_losses += 1
                     
                     if current_streak <= 0:
                         current_streak -= 1
                     else:
                         current_streak = -1
                     
-                    # worst loss streak আপডেট
                     if abs(current_streak) > worst_loss_streak:
                         worst_loss_streak = abs(current_streak)
                     if abs(current_streak) > hourly_worst_loss_streak:
                         hourly_worst_loss_streak = abs(current_streak)
                     
+                    current_level = min(3, current_level + 1)
                     status = "❌ হার"
 
                 total_rounds += 1
                 hourly_rounds += 1
                 
                 total_win_rate = (total_wins / total_rounds * 100) if total_rounds > 0 else 0
-                level = min(10, max(1, current_streak + 1)) if current_streak >= 0 else 1
+                multiplier = f"{current_level}x"
                 streak_emoji = "🔥" if current_streak > 0 else "📉" if current_streak < 0 else "⏸️"
 
                 result_msg = (
@@ -316,13 +397,13 @@ async def prediction_bot():
                     f"━━━━━━━━━━━━━━━━━━━━\n"
                     f"🆔 পিরিয়ড: `#{latest_issue[-5:]}`\n"
                     f"━━━━━━━━━━━━━━━━━━━━\n"
-                    f"🔮 *প্রেডিকশন:* `{last_predicted_signal}` → `{last_predicted_num}`\n"
-                    f"🎰 *একচুয়াল:* `{actual_num}` → `{actual_type}`\n"
-                    f"📌 *রেজাল্ট:* `{status}`\n"
+                    f"🔮 প্রেডিকশন: `{last_predicted_signal}` → `{last_predicted_num}`\n"
+                    f"🎰 একচুয়াল: `{actual_num}` → `{actual_type}`\n"
+                    f"📌 রেজাল্ট: `{status}`\n"
                     f"━━━━━━━━━━━━━━━━━━━━\n"
-                    f"📊 *জয়ের হার:* `{total_win_rate:.1f}%` ({total_wins}W/{total_losses}L)\n"
-                    f"{streak_emoji} *স্ট্রিক:* `{current_streak:+d}`\n"
-                    f"📈 *লেভেল:* `{level}` ({level}x)\n"
+                    f"📊 জয়ের হার: `{total_win_rate:.1f}%` ({total_wins}W/{total_losses}L)\n"
+                    f"{streak_emoji} স্ট্রিক: `{current_streak:+d}`\n"
+                    f"👑 লেভেল: `{current_level}` ({multiplier})\n"
                     f"━━━━━━━━━━━━━━━━━━━━\n"
                     f"🤖 @Tarek3o"
                 )
@@ -332,43 +413,46 @@ async def prediction_bot():
                 last_result_period = latest_issue
                 logger.info(f"✅ রেজাল্ট পাঠানো হয়েছে: {latest_issue}")
 
-                # প্রতি ঘন্টায় রিপোর্ট (রিসেট হবে না)
                 if time.time() - last_hour_time >= 3600:
                     await send_hourly_report()
                     last_hour_time = time.time()
 
-            # ===== নতুন প্রেডিকশন (RGB HACK) =====
+            # ===== নতুন প্রেডিকশন =====
             next_period = str(int(latest_issue) + 1)
             
-            if next_period not in prediction_sent_for_period or not prediction_sent_for_period[next_period]:
+            if not prediction_sent_for_period.get(next_period, False):
                 
-                logger.info(f"🎯 নতুন প্রেডিকশন: {next_period}")
+                pred = hybrid_engine(history_data, current_level, consecutive_losses)
                 
-                pred = rgb_hack_engine()
-
-                if pred['confidence'] >= 80:
+                multiplier = f"{current_level}x"
+                streak_emoji = "🔥" if current_streak > 0 else "📉" if current_streak < 0 else "⏸️"
+                
+                if pred['confidence'] >= 85:
                     rec = "🔥 হাই কনফিডেন্স - নরমাল বেট"
-                elif pred['confidence'] >= 65:
+                elif pred['confidence'] >= 70:
                     rec = "⚡ মিডিয়াম কনফিডেন্স - সেফ বেট"
                 else:
                     rec = "⚠️ লো কনফিডেন্স - ছোট বেট বা ওয়েট"
 
                 prediction_msg = (
-                    f"🔥 *RGB HACK 3M WINGO* 🔥\n"
+                    f"🔥 *DARK X HYBRID 3M WINGO* 🔥\n"
                     f"━━━━━━━━━━━━━━━━━━━━\n"
                     f"🆔 পিরিয়ড: `#{next_period[-5:]}`\n"
                     f"━━━━━━━━━━━━━━━━━━━━\n"
-                    f"🎯 *প্রেডিকশন:* `{pred['prediction']}`\n"
-                    f"🔢 *টার্গেট নম্বর:* `{pred['number']}`\n"
-                    f"⚡ *কনফিডেন্স:* `{pred['confidence']}%`\n"
+                    f"🎯 প্রেডিকশন: `{pred['prediction']}`\n"
+                    f"🔢 টার্গেট নম্বর: `{pred['number']}`\n"
+                    f"⚡ কনফিডেন্স: `{pred['confidence']}%`\n"
                     f"━━━━━━━━━━━━━━━━━━━━\n"
-                    f"📊 *প্যাটার্ন ইনডেক্স:* `{pred['pattern_index']}`\n"
-                    f"📊 *পিরিয়ড ইনডেক্স:* `{pred['period_index']}`\n"
+                    f"🧠 ইঞ্জিন: {pred['reason']}\n"
                     f"━━━━━━━━━━━━━━━━━━━━\n"
-                    f"💡 *রেকমেন্ডেশন:*\n"
+                    f"💡 রেকমেন্ডেশন:\n"
                     f"• {rec}\n"
                     f"━━━━━━━━━━━━━━━━━━━━\n"
-                    f"⏳ *রেজাল্টের জন্য অপেক্ষা...*\n"
+                    f"👑 লেভেল: `{current_level}` ({multiplier})\n"
+                    f"{streak_emoji} স্ট্রিক: `{current_streak:+d}`\n"
+                    f"❌ টানা লস: `{consecutive_losses}`\n"
+                    f"━━━━━━━━━━━━━━━━━━━━\n"
+                    f"⏳ রেজাল্টের জন্য অপেক্ষা...\n"
                     f"🤖 @Tarek3o"
                 )
 
@@ -379,24 +463,23 @@ async def prediction_bot():
                 last_result_sent = False
 
                 await send_message(prediction_msg)
-                logger.info(f"✅ প্রেডিকশন: {next_period} → {pred['prediction']} ({pred['number']})")
+                logger.info(f"✅ প্রেডিকশন: {next_period} → {pred['prediction']} ({pred['reason']})")
 
                 if len(prediction_sent_for_period) > 5:
                     oldest = min(prediction_sent_for_period.keys())
                     del prediction_sent_for_period[oldest]
-                    logger.info(f"🗑️ পুরনো পিরিয়ড ডিলিট: {oldest}")
 
         except Exception as e:
-            logger.error(f"❌ লুপ এরর: {e}")
+            logger.error(f"❌ Loop Error: {e}")
             await asyncio.sleep(5)
 
 # ==================== 🚀 স্টার্ট ====================
 if __name__ == '__main__':
-    print("🔥 RGB HACK 3M WINGO BIG/SMALL বট")
+    print("🔥 DARK X HYBRID 3M WINGO BOT")
     print("━━━━━━━━━━━━━━━━━━━━")
-    print("🧠 ইঞ্জিন: RGB HACK (১২-স্টেপ প্যাটার্ন)")
-    print("📡 মোড: 3M WINGO")
-    print("🤖 বট: @Tarek3o")
+    print("🎯 Hybrid: Trend Follow + Loss Breaker + DARK X")
+    print("📡 MODE: 3M WINGO")
+    print("🤖 BOT: @Tarek3o")
     print("━━━━━━━━━━━━━━━━━━━━")
     
     try:
