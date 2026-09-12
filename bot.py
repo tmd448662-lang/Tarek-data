@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 
 """
-🔥 DARK X HYBRID V3 - BEST WIN RATE
-🎯 Priority: Alternating → Trend → Markov → Loss Breaker
+🔥 REAL VIP V3 · NEURAL ANALYZER - 3M WINGO
+🧠 Anti-Dragon + Mirror + Twin + Majority + Smart Number
 🤖 @rakiiibahmed
 """
 
@@ -13,7 +13,7 @@ import requests
 import os
 import random
 import logging
-from datetime import datetime, timezone
+from datetime import datetime
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import threading
 
@@ -44,7 +44,7 @@ class DummyServer(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.end_headers()
-        self.wfile.write(b"DARK X HYBRID V3 BOT is running!")
+        self.wfile.write(b"REAL VIP V3 BOT is running!")
 
 def run_dummy_server():
     port = int(os.environ.get("PORT", 8080))
@@ -92,176 +92,101 @@ hourly_worst_loss_streak = 0
 history_data = []
 last_predicted_period = None
 last_predicted_signal = None
-last_predicted_num = None
+last_predicted_nums = []
 prediction_sent_for_period = {}
 last_result_sent = False
 
-# ═══════════════════════════════════════════════════
-#  🧠 ENGINE 1: ALTERNATING PATTERN
-# ═══════════════════════════════════════════════════
-def alternating_engine(types):
-    if len(types) < 4:
-        return None
+# ============================================================
+#  🧠 REAL VIP V3 NEURAL LOGIC
+# ============================================================
+def get_neural_analysis(data):
+    """
+    REAL VIP V3 · NEURAL ANALYZER
+    - Anti-Dragon
+    - 1-1 Mirror
+    - 2-2 Twin
+    - Majority
+    """
+    if len(data) < 10:
+        return {"pred": "BIG", "conf": "STABILIZING", "nums": [5, 7], "reason": "INSUFFICIENT DATA"}
     
-    last4 = types[:4]
+    # শেষ ১০টি রেজাল্ট
+    results = []
+    for d in data[:10]:
+        num = d['number']
+        results.append({
+            "num": num,
+            "size": "BIG" if num >= 5 else "SMALL"
+        })
     
-    if last4 == ["BIG", "SMALL", "BIG", "SMALL"]:
-        return {"prediction": "BIG", "confidence": 88, "reason": "ALTERNATING (B-S-B-S)"}
-    elif last4 == ["SMALL", "BIG", "SMALL", "BIG"]:
-        return {"prediction": "SMALL", "confidence": 88, "reason": "ALTERNATING (S-B-S-B)"}
+    sizes = [r["size"] for r in results]
     
-    return None
-
-# ═══════════════════════════════════════════════════
-#  🧠 ENGINE 2: TREND FOLLOW
-# ═══════════════════════════════════════════════════
-def trend_engine(types):
-    if len(types) < 5:
-        return None
+    # ── ১. Dragon Count (টানা একই দিক) ──
+    dragon = 1
+    for i in range(len(sizes) - 1):
+        if sizes[i] == sizes[i+1]:
+            dragon += 1
+        else:
+            break
     
-    recent5 = types[:5]
-    big_count = recent5.count("BIG")
-    small_count = recent5.count("SMALL")
+    pred = ""
+    conf = ""
+    reason = ""
     
-    if big_count >= 4:
-        return {
-            "prediction": "BIG",
-            "confidence": 85 if big_count == 5 else 80,
-            "reason": f"TREND FOLLOW ({big_count}B-{small_count}S)"
-        }
-    elif small_count >= 4:
-        return {
-            "prediction": "SMALL",
-            "confidence": 85 if small_count == 5 else 80,
-            "reason": f"TREND FOLLOW ({big_count}B-{small_count}S)"
-        }
+    # ── ২. Anti-Dragon Logic (dragon >= 4) ──
+    if dragon >= 4:
+        pred = "SMALL" if sizes[0] == "BIG" else "BIG"
+        conf = "ULTRA 🔥 (BREAK)"
+        reason = f"ANTI-DRAGON ({dragon}টি টানা {sizes[0]})"
     
-    return None
-
-# ═══════════════════════════════════════════════════
-#  🧠 ENGINE 3: MARKOV CHAIN
-# ═══════════════════════════════════════════════════
-def markov_engine(data, level):
-    if len(data) < 3:
-        return {"prediction": "BIG", "confidence": 50, "reason": "MARKOV (Fallback)"}
+    # ── ৩. 1-1 Mirror Logic ──
+    elif sizes[0] != sizes[1] and sizes[1] != sizes[2]:
+        pred = "SMALL" if sizes[0] == "BIG" else "BIG"
+        conf = "EXTREME 🚀 (MIRROR)"
+        reason = f"1-1 MIRROR ({sizes[0]}-{sizes[1]}-{sizes[2]})"
     
-    types = [d['side'] for d in data[:10]]
-    last1 = types[0] if len(types) > 0 else "BIG"
-    last2 = types[1] if len(types) > 1 else "BIG"
+    # ── ৪. 2-2 Twin Logic ──
+    elif sizes[0] == sizes[1] and sizes[2] == sizes[3]:
+        pred = "SMALL" if sizes[0] == "BIG" else "BIG"
+        conf = "HIGH ⚡ (TWIN)"
+        reason = f"2-2 TWIN ({sizes[0]}{sizes[1]}-{sizes[2]}{sizes[3]})"
     
-    if last1 == "SMALL":
-        pred = "BIG"
-        conf = 75
+    # ── ৫. Majority Logic (Fallback) ──
     else:
-        pred = "SMALL"
-        conf = 60
+        bigs = sizes[:6].count("BIG")
+        pred = "BIG" if bigs >= 3 else "SMALL"
+        conf = "NORMAL ⚡"
+        reason = f"MAJORITY (শেষ ৬টিতে {bigs}B-{6-bigs}S)"
     
-    if last1 == "BIG" and last2 == "BIG":
-        pred = "SMALL"
-        conf = 90
-    elif last1 == "SMALL" and last2 == "SMALL":
-        pred = "BIG"
-        conf = 95
-    elif last1 == "SMALL" and last2 == "BIG":
-        pred = "BIG"
-        conf = 70
-    elif last1 == "BIG" and last2 == "SMALL":
-        pred = "BIG"
-        conf = 85
+    # ── ৬. Smart Number Selection ──
+    # সাম্প্রতিক ৮টি নম্বর বাদ দিয়ে বাকি পুল থেকে নম্বর নেয়
+    recent_nums = set(r["num"] for r in results[:8])
+    pool = [5, 6, 7, 8, 9] if pred == "BIG" else [0, 1, 2, 3, 4]
+    smart_nums = [n for n in pool if n not in recent_nums]
     
-    if level >= 3 and len(data) > 0:
-        latest_num = data[0]['number']
-        pred = "SMALL" if latest_num >= 5 else "BIG"
-        conf = 99
-    
-    return {"prediction": pred, "confidence": conf, "reason": "MARKOV CHAIN"}
-
-# ═══════════════════════════════════════════════════
-#  🧠 ENGINE 4: LOSS BREAKER
-# ═══════════════════════════════════════════════════
-def loss_breaker_engine(data, level, consec_losses):
-    if consec_losses < 3:
-        return None
-    
-    markov = markov_engine(data, level)
-    
-    if consec_losses % 2 == 1:
-        pred = "SMALL" if markov['prediction'] == "BIG" else "BIG"
-        reason = f"LOSS BREAKER (উল্টো, {consec_losses}টি টানা লস)"
+    if len(smart_nums) < 2:
+        smart_nums = random.sample(pool, 2)
     else:
-        pred = markov['prediction']
-        reason = f"LOSS BREAKER (একই দিক, {consec_losses}টি টানা লস)"
+        smart_nums = random.sample(smart_nums, 2)
+    
+    smart_nums = sorted(smart_nums)
     
     return {
-        "prediction": pred,
-        "confidence": min(99, markov['confidence'] + 5),
-        "reason": reason
-    }
-
-# ═══════════════════════════════════════════════════
-#  🔥 MASTER HYBRID V3 ENGINE
-# ═══════════════════════════════════════════════════
-def hybrid_v3_engine(data, level, consec_losses):
-    if len(data) < 3:
-        return {"prediction": "BIG", "confidence": 50, "number": 7, "reason": "INSUFFICIENT DATA"}
-    
-    types = [d['side'] for d in data]
-    
-    # ধাপ ১: Alternating Pattern
-    alt_result = alternating_engine(types)
-    if alt_result:
-        pred = alt_result['prediction']
-        num = random.randint(5, 9) if pred == "BIG" else random.randint(0, 4)
-        return {
-            "prediction": pred,
-            "confidence": alt_result['confidence'],
-            "number": num,
-            "reason": alt_result['reason']
-        }
-    
-    # ধাপ ২: Trend Follow
-    trend_result = trend_engine(types)
-    if trend_result:
-        pred = trend_result['prediction']
-        num = random.randint(5, 9) if pred == "BIG" else random.randint(0, 4)
-        return {
-            "prediction": pred,
-            "confidence": trend_result['confidence'],
-            "number": num,
-            "reason": trend_result['reason']
-        }
-    
-    # ধাপ ৩: Loss Breaker (৩+ লস হলে)
-    if consec_losses >= 3:
-        lb_result = loss_breaker_engine(data, level, consec_losses)
-        if lb_result:
-            pred = lb_result['prediction']
-            num = random.randint(5, 9) if pred == "BIG" else random.randint(0, 4)
-            return {
-                "prediction": pred,
-                "confidence": lb_result['confidence'],
-                "number": num,
-                "reason": lb_result['reason']
-            }
-    
-    # ধাপ ৪: Markov Chain (Fallback)
-    markov = markov_engine(data, level)
-    pred = markov['prediction']
-    num = random.randint(5, 9) if pred == "BIG" else random.randint(0, 4)
-    return {
-        "prediction": pred,
-        "confidence": markov['confidence'],
-        "number": num,
-        "reason": markov['reason']
+        "pred": pred,
+        "conf": conf,
+        "nums": smart_nums,
+        "reason": reason,
+        "dragon": dragon
     }
 
 # ==================== 📡 API ফেচ ====================
 def fetch_api_data():
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Accept': 'application/json, text/plain, */*',
         'Accept-Language': 'en-US,en;q=0.9',
         'Referer': 'https://www.google.com/',
+        'Origin': 'https://www.google.com',
         'Connection': 'keep-alive',
         'Cache-Control': 'no-cache',
     }
@@ -310,7 +235,7 @@ async def send_hourly_report():
     total_win_rate = (total_wins / total_rounds * 100) if total_rounds > 0 else 0
     
     report_msg = (
-        f"📊 *আওয়ারলি রিপোর্ট - HYBRID V3*\n"
+        f"📊 *আওয়ারলি রিপোর্ট - REAL VIP V3*\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
         f"🕐 *সময়:* {datetime.now().strftime('%I:%M %p')}\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
@@ -347,19 +272,20 @@ async def prediction_bot():
     global current_streak, best_win_streak, worst_loss_streak
     global current_level, consecutive_losses, history_data
     global last_predicted_period, last_predicted_signal
-    global last_predicted_num, prediction_sent_for_period
+    global last_predicted_nums, prediction_sent_for_period
     global last_result_sent
 
-    logger.info("🔥 DARK X HYBRID V3 বট স্টার্ট...")
+    logger.info("🔥 REAL VIP V3 NEURAL ANALYZER বট স্টার্ট...")
 
     await send_message(
-        "🔥 *DARK X HYBRID V3 - BEST WIN RATE* 🔥\n"
+        "🔥 *REAL VIP V3 · NEURAL ANALYZER* 🔥\n"
         "━━━━━━━━━━━━━━━━━━━━\n"
-        "🧠 *Priority Order:*\n"
-        "1️⃣ Alternating Pattern (B-S-B-S)\n"
-        "2️⃣ Trend Follow (4+/5)\n"
-        "3️⃣ Markov Chain (DARK X)\n"
-        "4️⃣ Loss Breaker (3+ losses)\n"
+        "🧠 *Neural Logic:*\n"
+        "1️⃣ Anti-Dragon (টানা ৪+)\n"
+        "2️⃣ 1-1 Mirror\n"
+        "3️⃣ 2-2 Twin\n"
+        "4️⃣ Majority\n"
+        "🎯 *Smart Number:* Hot number বাদ\n"
         "📡 *মোড:* 3M WINGO\n"
         "🤖 *বট:* @rakiiibahmed\n"
         "━━━━━━━━━━━━━━━━━━━━\n"
@@ -376,6 +302,7 @@ async def prediction_bot():
 
             raw_list = fetch_api_data()
             if not raw_list:
+                logger.warning("⚠️ ডেটা নেই, রিট্রাই...")
                 continue
 
             history_data = []
@@ -397,6 +324,7 @@ async def prediction_bot():
             # ===== রেজাল্ট চেক =====
             if last_predicted_period == latest_issue and last_predicted_signal is not None and not last_result_sent:
                 is_win = (last_predicted_signal == actual_type)
+                is_jackpot = actual_num in last_predicted_nums
                 
                 if is_win:
                     total_wins += 1
@@ -415,6 +343,7 @@ async def prediction_bot():
                     
                     current_level = 1
                     status = "✅ জয় 🎉"
+                    jackpot_text = " 🎰 JACKPOT!" if is_jackpot else ""
                 else:
                     total_losses += 1
                     hourly_losses += 1
@@ -432,6 +361,7 @@ async def prediction_bot():
                     
                     current_level = min(3, current_level + 1)
                     status = "❌ হার"
+                    jackpot_text = ""
 
                 total_rounds += 1
                 hourly_rounds += 1
@@ -445,9 +375,10 @@ async def prediction_bot():
                     f"━━━━━━━━━━━━━━━━━━━━\n"
                     f"🆔 পিরিয়ড: `#{latest_issue[-5:]}`\n"
                     f"━━━━━━━━━━━━━━━━━━━━\n"
-                    f"🔮 প্রেডিকশন: `{last_predicted_signal}` → `{last_predicted_num}`\n"
+                    f"🔮 প্রেডিকশন: `{last_predicted_signal}`\n"
+                    f"🎯 টার্গেট: `{', '.join(map(str, last_predicted_nums))}`\n"
                     f"🎰 একচুয়াল: `{actual_num}` → `{actual_type}`\n"
-                    f"📌 রেজাল্ট: `{status}`\n"
+                    f"📌 রেজাল্ট: `{status}{jackpot_text}`\n"
                     f"━━━━━━━━━━━━━━━━━━━━\n"
                     f"📊 জয়ের হার: `{total_win_rate:.1f}%` ({total_wins}W/{total_losses}L)\n"
                     f"{streak_emoji} স্ট্রিক: `{current_streak:+d}`\n"
@@ -469,31 +400,29 @@ async def prediction_bot():
             
             if not prediction_sent_for_period.get(next_period, False):
                 
-                pred = hybrid_v3_engine(history_data, current_level, consecutive_losses)
+                # 🔥 REAL VIP V3 NEURAL ANALYSIS
+                analysis = get_neural_analysis(history_data)
+                
+                pred = analysis['pred']
+                nums = analysis['nums']
+                conf = analysis['conf']
+                reason = analysis['reason']
                 
                 multiplier = f"{current_level}x"
                 streak_emoji = "🔥" if current_streak > 0 else "📉" if current_streak < 0 else "⏸️"
                 
-                if pred['confidence'] >= 85:
-                    rec = "🔥 হাই কনফিডেন্স - নরমাল বেট"
-                elif pred['confidence'] >= 70:
-                    rec = "⚡ মিডিয়াম কনফিডেন্স - সেফ বেট"
-                else:
-                    rec = "⚠️ লো কনফিডেন্স - ছোট বেট বা ওয়েট"
-
                 prediction_msg = (
-                    f"🔥 *DARK X HYBRID V3 - 3M WINGO* 🔥\n"
+                    f"🔥 *REAL VIP V3 · NEURAL ANALYZER* 🔥\n"
                     f"━━━━━━━━━━━━━━━━━━━━\n"
                     f"🆔 পিরিয়ড: `#{next_period[-5:]}`\n"
                     f"━━━━━━━━━━━━━━━━━━━━\n"
-                    f"🎯 প্রেডিকশন: `{pred['prediction']}`\n"
-                    f"🔢 টার্গেট নম্বর: `{pred['number']}`\n"
-                    f"⚡ কনফিডেন্স: `{pred['confidence']}%`\n"
+                    f"🎯 প্রেডিকশন: `{pred}`\n"
+                    f"🔢 টার্গেট নম্বর: `{', '.join(map(str, nums))}`\n"
+                    f"⚡ কনফিডেন্স: `{conf}`\n"
                     f"━━━━━━━━━━━━━━━━━━━━\n"
-                    f"🧠 ইঞ্জিন: {pred['reason']}\n"
+                    f"🧠 ইঞ্জিন: {reason}\n"
                     f"━━━━━━━━━━━━━━━━━━━━\n"
-                    f"💡 রেকমেন্ডেশন:\n"
-                    f"• {rec}\n"
+                    f"🎰 JACKPOT: `{', '.join(map(str, nums))}`\n"
                     f"━━━━━━━━━━━━━━━━━━━━\n"
                     f"👑 লেভেল: `{current_level}` ({multiplier})\n"
                     f"{streak_emoji} স্ট্রিক: `{current_streak:+d}`\n"
@@ -504,13 +433,13 @@ async def prediction_bot():
                 )
 
                 last_predicted_period = next_period
-                last_predicted_signal = pred['prediction']
-                last_predicted_num = pred['number']
+                last_predicted_signal = pred
+                last_predicted_nums = nums
                 prediction_sent_for_period[next_period] = True
                 last_result_sent = False
 
                 await send_message(prediction_msg)
-                logger.info(f"✅ প্রেডিকশন: {next_period} → {pred['prediction']} ({pred['reason']})")
+                logger.info(f"✅ প্রেডিকশন: {next_period} → {pred} ({reason})")
 
                 if len(prediction_sent_for_period) > 5:
                     oldest = min(prediction_sent_for_period.keys())
@@ -522,12 +451,14 @@ async def prediction_bot():
 
 # ==================== 🚀 স্টার্ট ====================
 if __name__ == '__main__':
-    print("🔥 DARK X HYBRID V3 - BEST WIN RATE")
+    print("🔥 REAL VIP V3 · NEURAL ANALYZER")
     print("━━━━━━━━━━━━━━━━━━━━")
-    print("🎯 1. Alternating Pattern")
-    print("🎯 2. Trend Follow (4+/5)")
-    print("🎯 3. Markov Chain (DARK X)")
-    print("🎯 4. Loss Breaker (3+ losses)")
+    print("🧠 Neural Logic:")
+    print("  1. Anti-Dragon (4+ streak)")
+    print("  2. 1-1 Mirror")
+    print("  3. 2-2 Twin")
+    print("  4. Majority")
+    print("🎯 Smart Number Selection")
     print("📡 MODE: 3M WINGO")
     print("🤖 BOT: @rakiiibahmed")
     print("━━━━━━━━━━━━━━━━━━━━")
