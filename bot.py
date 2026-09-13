@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 
 """
-🔥 REAL VIP V3 · NEURAL ANALYZER - 3M WINGO
-🧠 Anti-Dragon + Mirror + Twin + Majority + Smart Number
+🔥 PATTERN MATCHER V2 - 1 MIN WINGO
+📊 PDF 1 (Pattern) + PDF 2 (Trap + Level)
 🤖 @rakiiibahmed
 """
 
@@ -11,7 +11,6 @@ import asyncio
 import time
 import requests
 import os
-import random
 import logging
 from datetime import datetime
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -34,9 +33,10 @@ except ImportError:
 BOT_TOKEN = "8386058038:AAEwayH-C4AUr7L_tx6Ecz__xpIXnrekJw0"
 CHAT_ID = "5012028880"
 
+# ✅ 1 MIN WINGO API
 API_URLS = [
-    "https://draw.ar-lottery01.com/WinGo/WinGo_3M/GetHistoryIssuePage.json",
-    "https://api.ar-lottery01.com/WinGo/WinGo_3M/GetHistoryIssuePage.json",
+    "https://draw.ar-lottery01.com/WinGo/WinGo_1M/GetHistoryIssuePage.json",
+    "https://api.ar-lottery01.com/WinGo/WinGo_1M/GetHistoryIssuePage.json",
 ]
 
 # ==================== 🌐 ওয়েব সার্ভার ====================
@@ -44,7 +44,7 @@ class DummyServer(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.end_headers()
-        self.wfile.write(b"REAL VIP V3 BOT is running!")
+        self.wfile.write(b"PATTERN MATCHER V2 - 1M is running!")
 
 def run_dummy_server():
     port = int(os.environ.get("PORT", 8080))
@@ -68,7 +68,6 @@ threading.Thread(target=keep_alive, daemon=True).start()
 try:
     bot = Bot(token=BOT_TOKEN)
     logger.info("✅ বট ইনিশিয়ালাইজেশন সফল!")
-    logger.info(f"🤖 বট: @rakiiibahmed")
 except Exception as e:
     logger.error(f"❌ বট ইনিশিয়ালাইজেশন ব্যর্থ: {e}")
     exit(1)
@@ -80,8 +79,6 @@ total_rounds = 0
 current_streak = 0
 best_win_streak = 0
 worst_loss_streak = 0
-current_level = 1
-consecutive_losses = 0
 
 hourly_wins = 0
 hourly_losses = 0
@@ -89,105 +86,170 @@ hourly_rounds = 0
 hourly_best_win_streak = 0
 hourly_worst_loss_streak = 0
 
-history_data = []
+# Level System (PDF 2)
+current_level = 1
+consecutive_losses = 0
+break_until_period = None
+
 last_predicted_period = None
 last_predicted_signal = None
-last_predicted_nums = []
+last_trap_detected = None
 prediction_sent_for_period = {}
 last_result_sent = False
 
 # ============================================================
-#  🧠 REAL VIP V3 NEURAL LOGIC
+#  📚 PATTERN DATABASE (PDF 1)
 # ============================================================
-def get_neural_analysis(data):
-    """
-    REAL VIP V3 · NEURAL ANALYZER
-    - Anti-Dragon
-    - 1-1 Mirror
-    - 2-2 Twin
-    - Majority
-    """
-    if len(data) < 10:
-        return {"pred": "BIG", "conf": "STABILIZING", "nums": [5, 7], "reason": "INSUFFICIENT DATA"}
+PATTERNS_5 = {
+    "SSBSS": "S", "BBSBS": "S", "SBBBS": "B", "BSBBB": "S",
+    "BBBBS": "B", "BBBSB": "B", "SSBSB": "B",
+    "SBSBS": "B", "SBSBB": "B", "SSSBB": "B", "BSSBS": "S",
+    "SBBSB": "S", "BSBSB": "S", "SBSSB": "S",
+    "BSSSB": "S", "BBSBB": "B", "SBBBB": "B",
+    "SBSSBB": "B", "BBSSSB": "B", "BSSBSB": "S",
+}
+
+PATTERNS_6 = {
+    "BSBBSS": "S", "BSBSSS": "S", "SSSBBB": "B", "SSSBBS": "B",
+    "SSBBBS": "B", "BSBSSB": "S", "BSSSBS": "B", "SSSSSS": "B",
+    "SSSSSB": "B", "BBSBSB": "S", "BBBBSB": "S", "SBBBBB": "S",
+    "SBBBBS": "S", "BBSBBB": "S", "BSBSBB": "S", "SSSSBS": "B",
+    "SSBBSB": "B", "SBSSSB": "B", "BSBBBS": "S", "SSSBSB": "B",
+}
+
+PATTERNS_7 = {
+    "SSBBBS": "B", "BSSSSB": "S", "BSSSBB": "S", "SBBBBS": "S",
+    "SSSBBB": "B", "BSSBBB": "S", "SSSSBB": "B", "SSSSSSB": "B",
+    "SSSSSB": "B", "BSBSBSB": "S", "BSSBSBS": "S",
+    "SBSBSB": "B", "BSBSBSS": "B", "SSSBSB": "B", "BBSBSB": "S",
+    "BBSBSBS": "B", "SBSBSBS": "S", "BSSBSBS": "B", "SSSSSSS": "B",
+    "BBBBBBS": "S", "SBBBBBB": "S", "BSBBBSB": "S",
+    "SSSBBSB": "B", "BBSBBBS": "S",
+}
+
+# ============================================================
+#  🎯 PDF 2: TRAP DATABASE
+# ============================================================
+TRAP_PATTERNS = {
+    "BBBB": "S", "SSSS": "B",
+    "BSBS": "S", "SBSB": "B",
+    "BBSS": "S", "SSBB": "B",
+    "BSSB": "S", "SBBS": "B",
+    "BSBB": "S", "SBSS": "B",
+    "BBSB": "S", "SSBS": "B",
+    "BBBS": "S", "SSSB": "B",
+    "BSSS": "B", "SBBB": "S",
+}
+
+# ============================================================
+#  🧠 PATTERN MATCHER (PDF 1)
+# ============================================================
+def pattern_matcher(sides):
+    if len(sides) < 5:
+        return {"prediction": "BIG", "confidence": 50, "reason": "INSUFFICIENT DATA", "pattern": None}
     
-    # শেষ ১০টি রেজাল্ট
-    results = []
-    for d in data[:10]:
-        num = d['number']
-        results.append({
-            "num": num,
-            "size": "BIG" if num >= 5 else "SMALL"
-        })
+    # 7-digit
+    if len(sides) >= 7:
+        p7 = ''.join(sides[:7])
+        if p7 in PATTERNS_7:
+            pred = "BIG" if PATTERNS_7[p7] == "B" else "SMALL"
+            return {"prediction": pred, "confidence": 80, "reason": f"7-DIGIT ({p7})", "pattern": p7}
     
-    sizes = [r["size"] for r in results]
+    # 6-digit
+    if len(sides) >= 6:
+        p6 = ''.join(sides[:6])
+        if p6 in PATTERNS_6:
+            pred = "BIG" if PATTERNS_6[p6] == "B" else "SMALL"
+            return {"prediction": pred, "confidence": 75, "reason": f"6-DIGIT ({p6})", "pattern": p6}
     
-    # ── ১. Dragon Count (টানা একই দিক) ──
-    dragon = 1
-    for i in range(len(sizes) - 1):
-        if sizes[i] == sizes[i+1]:
-            dragon += 1
-        else:
-            break
+    # 5-digit
+    if len(sides) >= 5:
+        p5 = ''.join(sides[:5])
+        if p5 in PATTERNS_5:
+            pred = "BIG" if PATTERNS_5[p5] == "B" else "SMALL"
+            return {"prediction": pred, "confidence": 70, "reason": f"5-DIGIT ({p5})", "pattern": p5}
     
-    pred = ""
-    conf = ""
-    reason = ""
+    # Fallback
+    recent5 = sides[:5]
+    b = recent5.count("B")
+    s = recent5.count("S")
+    pred = "BIG" if b >= s else "SMALL"
+    return {"prediction": pred, "confidence": 55, "reason": f"MAJORITY ({b}B-{s}S)", "pattern": None}
+
+# ============================================================
+#  🧠 TRAP DETECTION (PDF 2)
+# ============================================================
+def detect_trap(sides):
+    if len(sides) < 3:
+        return None
     
-    # ── ২. Anti-Dragon Logic (dragon >= 4) ──
-    if dragon >= 4:
-        pred = "SMALL" if sizes[0] == "BIG" else "BIG"
-        conf = "ULTRA 🔥 (BREAK)"
-        reason = f"ANTI-DRAGON ({dragon}টি টানা {sizes[0]})"
+    if len(sides) >= 4:
+        p4 = ''.join(sides[:4])
+        if p4 in TRAP_PATTERNS:
+            trap_pred = TRAP_PATTERNS[p4]
+            return {
+                "trap_pattern": p4,
+                "trap_prediction": "BIG" if trap_pred == "B" else "SMALL",
+                "human_thinks": "BIG" if trap_pred == "S" else "SMALL"
+            }
     
-    # ── ৩. 1-1 Mirror Logic ──
-    elif sizes[0] != sizes[1] and sizes[1] != sizes[2]:
-        pred = "SMALL" if sizes[0] == "BIG" else "BIG"
-        conf = "EXTREME 🚀 (MIRROR)"
-        reason = f"1-1 MIRROR ({sizes[0]}-{sizes[1]}-{sizes[2]})"
+    p3 = ''.join(sides[:3])
+    if p3 == "BBB":
+        return {"trap_pattern": p3, "trap_prediction": "SMALL", "human_thinks": "BIG"}
+    elif p3 == "SSS":
+        return {"trap_pattern": p3, "trap_prediction": "BIG", "human_thinks": "SMALL"}
     
-    # ── ৪. 2-2 Twin Logic ──
-    elif sizes[0] == sizes[1] and sizes[2] == sizes[3]:
-        pred = "SMALL" if sizes[0] == "BIG" else "BIG"
-        conf = "HIGH ⚡ (TWIN)"
-        reason = f"2-2 TWIN ({sizes[0]}{sizes[1]}-{sizes[2]}{sizes[3]})"
-    
-    # ── ৫. Majority Logic (Fallback) ──
+    return None
+
+# ============================================================
+#  🧠 LEVEL SYSTEM (PDF 2)
+# ============================================================
+def apply_level(prediction, level):
+    if level == 1:
+        return prediction, "Level 1"
+    elif level == 2:
+        flipped = "SMALL" if prediction == "BIG" else "BIG"
+        return flipped, "Level 2 (Flipped)"
     else:
-        bigs = sizes[:6].count("BIG")
-        pred = "BIG" if bigs >= 3 else "SMALL"
-        conf = "NORMAL ⚡"
-        reason = f"MAJORITY (শেষ ৬টিতে {bigs}B-{6-bigs}S)"
+        return prediction, "Level 3"
+
+# ============================================================
+#  🔥 MASTER ENGINE (PDF 1 + PDF 2)
+# ============================================================
+def master_engine(sides, level):
+    pattern_result = pattern_matcher(sides)
+    base_pred = pattern_result['prediction']
     
-    # ── ৬. Smart Number Selection ──
-    # সাম্প্রতিক ৮টি নম্বর বাদ দিয়ে বাকি পুল থেকে নম্বর নেয়
-    recent_nums = set(r["num"] for r in results[:8])
-    pool = [5, 6, 7, 8, 9] if pred == "BIG" else [0, 1, 2, 3, 4]
-    smart_nums = [n for n in pool if n not in recent_nums]
+    trap = detect_trap(sides)
     
-    if len(smart_nums) < 2:
-        smart_nums = random.sample(pool, 2)
+    if trap:
+        final_pred = trap['trap_prediction']
+        engine_type = f"TRAP ({trap['trap_pattern']})"
+        confidence = 78
     else:
-        smart_nums = random.sample(smart_nums, 2)
+        final_pred = base_pred
+        engine_type = pattern_result['reason']
+        confidence = pattern_result['confidence']
     
-    smart_nums = sorted(smart_nums)
+    leveled_pred, level_name = apply_level(final_pred, level)
     
     return {
-        "pred": pred,
-        "conf": conf,
-        "nums": smart_nums,
-        "reason": reason,
-        "dragon": dragon
+        "prediction": leveled_pred,
+        "base_prediction": final_pred,
+        "confidence": confidence,
+        "engine": engine_type,
+        "pattern": pattern_result['pattern'],
+        "trap": trap,
+        "level": level,
+        "level_name": level_name
     }
 
 # ==================== 📡 API ফেচ ====================
 def fetch_api_data():
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
         'Accept': 'application/json, text/plain, */*',
-        'Accept-Language': 'en-US,en;q=0.9',
         'Referer': 'https://www.google.com/',
-        'Origin': 'https://www.google.com',
-        'Connection': 'keep-alive',
         'Cache-Control': 'no-cache',
     }
     
@@ -195,31 +257,23 @@ def fetch_api_data():
         try:
             url = api_url + "?t=" + str(int(time.time() * 1000))
             res = requests.get(url, headers=headers, timeout=10)
-            
             if res.status_code == 200:
                 data = res.json()
                 list_data = data.get("data", {}).get("list", [])
-                if list_data and len(list_data) > 0:
+                if list_data:
                     return list_data
-            else:
-                logger.warning(f"⚠️ {api_url} → HTTP {res.status_code}")
-        except Exception as e:
-            logger.warning(f"⚠️ {api_url} → এরর: {e}")
-    
+        except:
+            continue
     return []
 
 # ==================== 📤 মেসেজ সেন্ড ====================
-async def send_message(text, parse_mode="Markdown", retry_count=3):
-    for attempt in range(retry_count):
-        try:
-            await bot.send_message(chat_id=CHAT_ID, text=text, parse_mode=parse_mode)
-            return True
-        except (TimedOut, NetworkError):
-            await asyncio.sleep(2)
-        except Exception as e:
-            logger.error(f"❌ টেলিগ্রাম এরর: {e}")
-            break
-    return False
+async def send_message(text, parse_mode="Markdown"):
+    try:
+        await bot.send_message(chat_id=CHAT_ID, text=text, parse_mode=parse_mode)
+        return True
+    except Exception as e:
+        logger.error(f"❌ টেলিগ্রাম এরর: {e}")
+        return False
 
 # ==================== 📊 হাওয়ারলি রিপোর্ট ====================
 async def send_hourly_report():
@@ -231,32 +285,30 @@ async def send_hourly_report():
     if hourly_rounds == 0:
         return
     
-    hourly_win_rate = (hourly_wins / hourly_rounds * 100) if hourly_rounds > 0 else 0
-    total_win_rate = (total_wins / total_rounds * 100) if total_rounds > 0 else 0
+    h_rate = (hourly_wins / hourly_rounds * 100) if hourly_rounds > 0 else 0
+    t_rate = (total_wins / total_rounds * 100) if total_rounds > 0 else 0
     
-    report_msg = (
-        f"📊 *আওয়ারলি রিপোর্ট - REAL VIP V3*\n"
+    report = (
+        f"📊 *আওয়ারলি রিপোর্ট - 1M WINGO*\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
         f"🕐 *সময়:* {datetime.now().strftime('%I:%M %p')}\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
         f"🔄 *এই ঘন্টায় রাউন্ড:* `{hourly_rounds}`\n"
-        f"✅ *এই ঘন্টায় জয়:* `{hourly_wins}`\n"
-        f"❌ *এই ঘন্টায় হার:* `{hourly_losses}`\n"
-        f"📈 *এই ঘন্টায় হার:* `{hourly_win_rate:.1f}%`\n"
+        f"✅ *জয়:* `{hourly_wins}` | ❌ *হার:* `{hourly_losses}`\n"
+        f"📈 *জয়ের হার:* `{h_rate:.1f}%`\n"
         f"🔥 *সেরা জয় স্ট্রিক:* `{hourly_best_win_streak}x`\n"
         f"📉 *সেরা হার স্ট্রিক:* `{hourly_worst_loss_streak}x`\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
         f"📊 *মোট রাউন্ড:* `{total_rounds}`\n"
-        f"✅ *মোট জয়:* `{total_wins}`\n"
-        f"❌ *মোট হার:* `{total_losses}`\n"
-        f"📈 *মোট জয়ের হার:* `{total_win_rate:.1f}%`\n"
+        f"✅ *মোট জয়:* `{total_wins}` | ❌ *মোট হার:* `{total_losses}`\n"
+        f"📈 *মোট জয়ের হার:* `{t_rate:.1f}%`\n"
         f"🔥 *সেরা জয় স্ট্রিক:* `{best_win_streak}x`\n"
         f"📉 *সেরা হার স্ট্রিক:* `{worst_loss_streak}x`\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
         f"🤖 @rakiiibahmed"
     )
     
-    await send_message(report_msg)
+    await send_message(report)
     
     hourly_wins = 0
     hourly_losses = 0
@@ -270,23 +322,19 @@ async def prediction_bot():
     global hourly_wins, hourly_losses, hourly_rounds
     global hourly_best_win_streak, hourly_worst_loss_streak
     global current_streak, best_win_streak, worst_loss_streak
-    global current_level, consecutive_losses, history_data
+    global current_level, consecutive_losses, break_until_period
     global last_predicted_period, last_predicted_signal
-    global last_predicted_nums, prediction_sent_for_period
+    global last_trap_detected, prediction_sent_for_period
     global last_result_sent
 
-    logger.info("🔥 REAL VIP V3 NEURAL ANALYZER বট স্টার্ট...")
+    logger.info("🔥 PATTERN MATCHER V2 - 1M WINGO স্টার্ট...")
 
     await send_message(
-        "🔥 *REAL VIP V3 · NEURAL ANALYZER* 🔥\n"
+        "🔥 *PATTERN MATCHER V2 - 1M* 🔥\n"
         "━━━━━━━━━━━━━━━━━━━━\n"
-        "🧠 *Neural Logic:*\n"
-        "1️⃣ Anti-Dragon (টানা ৪+)\n"
-        "2️⃣ 1-1 Mirror\n"
-        "3️⃣ 2-2 Twin\n"
-        "4️⃣ Majority\n"
-        "🎯 *Smart Number:* Hot number বাদ\n"
-        "📡 *মোড:* 3M WINGO\n"
+        "📚 *PDF 1:* Pattern Matching\n"
+        "🎯 *PDF 2:* Trap + Level System\n"
+        "📡 *মোড:* 1 MIN WINGO\n"
         "🤖 *বট:* @rakiiibahmed\n"
         "━━━━━━━━━━━━━━━━━━━━\n"
         "⏳ প্রথম সিগন্যালের জন্য অপেক্ষা..."
@@ -296,13 +344,13 @@ async def prediction_bot():
 
     while True:
         try:
-            current_sec = int(time.time()) % 180
-            sleep_time = 180 - current_sec + 5
+            # ✅ 1 মিনিট (60 সেকেন্ড) অপেক্ষা
+            current_sec = int(time.time()) % 60
+            sleep_time = 60 - current_sec + 3
             await asyncio.sleep(sleep_time)
 
             raw_list = fetch_api_data()
             if not raw_list:
-                logger.warning("⚠️ ডেটা নেই, রিট্রাই...")
                 continue
 
             history_data = []
@@ -322,14 +370,14 @@ async def prediction_bot():
             logger.info(f"📡 পিরিয়ড: {latest_issue}, নাম্বার: {actual_num} ({actual_type})")
 
             # ===== রেজাল্ট চেক =====
-            if last_predicted_period == latest_issue and last_predicted_signal is not None and not last_result_sent:
+            if last_predicted_period == latest_issue and last_predicted_signal and not last_result_sent:
                 is_win = (last_predicted_signal == actual_type)
-                is_jackpot = actual_num in last_predicted_nums
                 
                 if is_win:
                     total_wins += 1
                     hourly_wins += 1
                     consecutive_losses = 0
+                    current_level = 1
                     
                     if current_streak >= 0:
                         current_streak += 1
@@ -341,9 +389,8 @@ async def prediction_bot():
                     if current_streak > hourly_best_win_streak:
                         hourly_best_win_streak = current_streak
                     
-                    current_level = 1
                     status = "✅ জয় 🎉"
-                    jackpot_text = " 🎰 JACKPOT!" if is_jackpot else ""
+                    level_text = "→ Level 1 (Reset)"
                 else:
                     total_losses += 1
                     hourly_losses += 1
@@ -359,16 +406,29 @@ async def prediction_bot():
                     if abs(current_streak) > hourly_worst_loss_streak:
                         hourly_worst_loss_streak = abs(current_streak)
                     
-                    current_level = min(3, current_level + 1)
+                    if current_level == 1:
+                        current_level = 2
+                        level_text = "→ Level 2"
+                    elif current_level == 2:
+                        current_level = 3
+                        level_text = "→ Level 3"
+                    else:
+                        current_level = 1
+                        consecutive_losses = 0
+                        break_until_period = str(int(latest_issue) + 2)
+                        level_text = "⚠️ Break (২ রাউন্ড)"
+                    
                     status = "❌ হার"
-                    jackpot_text = ""
 
                 total_rounds += 1
                 hourly_rounds += 1
                 
-                total_win_rate = (total_wins / total_rounds * 100) if total_rounds > 0 else 0
-                multiplier = f"{current_level}x"
+                t_rate = (total_wins / total_rounds * 100) if total_rounds > 0 else 0
                 streak_emoji = "🔥" if current_streak > 0 else "📉" if current_streak < 0 else "⏸️"
+                
+                trap_info = ""
+                if last_trap_detected:
+                    trap_info = f"\n🎭 Trap: `{last_trap_detected['trap_pattern']}`"
 
                 result_msg = (
                     f"🎯 *রেজাল্ট আপডেট*\n"
@@ -376,20 +436,19 @@ async def prediction_bot():
                     f"🆔 পিরিয়ড: `#{latest_issue[-5:]}`\n"
                     f"━━━━━━━━━━━━━━━━━━━━\n"
                     f"🔮 প্রেডিকশন: `{last_predicted_signal}`\n"
-                    f"🎯 টার্গেট: `{', '.join(map(str, last_predicted_nums))}`\n"
                     f"🎰 একচুয়াল: `{actual_num}` → `{actual_type}`\n"
-                    f"📌 রেজাল্ট: `{status}{jackpot_text}`\n"
+                    f"📌 রেজাল্ট: `{status}`\n"
+                    f"{trap_info}\n"
                     f"━━━━━━━━━━━━━━━━━━━━\n"
-                    f"📊 জয়ের হার: `{total_win_rate:.1f}%` ({total_wins}W/{total_losses}L)\n"
+                    f"📊 জয়ের হার: `{t_rate:.1f}%` ({total_wins}W/{total_losses}L)\n"
                     f"{streak_emoji} স্ট্রিক: `{current_streak:+d}`\n"
-                    f"👑 লেভেল: `{current_level}` ({multiplier})\n"
+                    f"👑 লেভেল: `{current_level}` {level_text}\n"
                     f"━━━━━━━━━━━━━━━━━━━━\n"
                     f"🤖 @rakiiibahmed"
                 )
 
                 await send_message(result_msg)
                 last_result_sent = True
-                logger.info(f"✅ রেজাল্ট পাঠানো হয়েছে: {latest_issue}")
 
                 if time.time() - last_hour_time >= 3600:
                     await send_hourly_report()
@@ -398,33 +457,51 @@ async def prediction_bot():
             # ===== নতুন প্রেডিকশন =====
             next_period = str(int(latest_issue) + 1)
             
+            if break_until_period and next_period < break_until_period:
+                logger.info(f"⏸️ Break: {next_period}")
+                continue
+            
             if not prediction_sent_for_period.get(next_period, False):
                 
-                # 🔥 REAL VIP V3 NEURAL ANALYSIS
-                analysis = get_neural_analysis(history_data)
+                sides = [d['side'][0] for d in history_data]
+                result = master_engine(sides, current_level)
                 
-                pred = analysis['pred']
-                nums = analysis['nums']
-                conf = analysis['conf']
-                reason = analysis['reason']
+                last_trap_detected = result.get('trap')
                 
-                multiplier = f"{current_level}x"
                 streak_emoji = "🔥" if current_streak > 0 else "📉" if current_streak < 0 else "⏸️"
                 
+                if result['confidence'] >= 80:
+                    rec = "🔥 হাই কনফিডেন্স"
+                elif result['confidence'] >= 70:
+                    rec = "⚡ মিডিয়াম কনফিডেন্স"
+                else:
+                    rec = "⚠️ লো কনফিডেন্স"
+
+                trap_msg = ""
+                if result.get('trap'):
+                    trap_msg = (
+                        f"\n🎭 *Trap Detected:*\n"
+                        f"• প্যাটার্ন: `{result['trap']['trap_pattern']}`\n"
+                        f"• মানুষ ভাবে: `{result['trap']['human_thinks']}`\n"
+                        f"• আমরা দিচ্ছি: `{result['trap']['trap_prediction']}`\n"
+                    )
+
                 prediction_msg = (
-                    f"🔥 *REAL VIP V3 · NEURAL ANALYZER* 🔥\n"
+                    f"🔥 *PATTERN MATCHER V2 - 1M* 🔥\n"
                     f"━━━━━━━━━━━━━━━━━━━━\n"
                     f"🆔 পিরিয়ড: `#{next_period[-5:]}`\n"
                     f"━━━━━━━━━━━━━━━━━━━━\n"
-                    f"🎯 প্রেডিকশন: `{pred}`\n"
-                    f"🔢 টার্গেট নম্বর: `{', '.join(map(str, nums))}`\n"
-                    f"⚡ কনফিডেন্স: `{conf}`\n"
+                    f"🎯 প্রেডিকশন: `{result['prediction']}`\n"
+                    f"⚡ কনফিডেন্স: `{result['confidence']}%`\n"
+                    f"👑 লেভেল: `{current_level}` ({result['level_name']})\n"
                     f"━━━━━━━━━━━━━━━━━━━━\n"
-                    f"🧠 ইঞ্জিন: {reason}\n"
+                    f"🧠 ইঞ্জিন: {result['engine']}\n"
+                    f"📊 PDF 1 Pattern: `{result['pattern'] or 'None'}`\n"
+                    f"{trap_msg}"
                     f"━━━━━━━━━━━━━━━━━━━━\n"
-                    f"🎰 JACKPOT: `{', '.join(map(str, nums))}`\n"
+                    f"💡 রেকমেন্ডেশন:\n"
+                    f"• {rec}\n"
                     f"━━━━━━━━━━━━━━━━━━━━\n"
-                    f"👑 লেভেল: `{current_level}` ({multiplier})\n"
                     f"{streak_emoji} স্ট্রিক: `{current_streak:+d}`\n"
                     f"❌ টানা লস: `{consecutive_losses}`\n"
                     f"━━━━━━━━━━━━━━━━━━━━\n"
@@ -433,15 +510,14 @@ async def prediction_bot():
                 )
 
                 last_predicted_period = next_period
-                last_predicted_signal = pred
-                last_predicted_nums = nums
+                last_predicted_signal = result['prediction']
                 prediction_sent_for_period[next_period] = True
                 last_result_sent = False
 
                 await send_message(prediction_msg)
-                logger.info(f"✅ প্রেডিকশন: {next_period} → {pred} ({reason})")
+                logger.info(f"✅ প্রেডিকশন: {next_period} → {result['prediction']} ({result['engine']})")
 
-                if len(prediction_sent_for_period) > 5:
+                if len(prediction_sent_for_period) > 10:
                     oldest = min(prediction_sent_for_period.keys())
                     del prediction_sent_for_period[oldest]
 
@@ -451,15 +527,11 @@ async def prediction_bot():
 
 # ==================== 🚀 স্টার্ট ====================
 if __name__ == '__main__':
-    print("🔥 REAL VIP V3 · NEURAL ANALYZER")
+    print("🔥 PATTERN MATCHER V2 - 1 MIN WINGO")
     print("━━━━━━━━━━━━━━━━━━━━")
-    print("🧠 Neural Logic:")
-    print("  1. Anti-Dragon (4+ streak)")
-    print("  2. 1-1 Mirror")
-    print("  3. 2-2 Twin")
-    print("  4. Majority")
-    print("🎯 Smart Number Selection")
-    print("📡 MODE: 3M WINGO")
+    print(f"📚 PDF 1 Pattern: {len(PATTERNS_5)}+{len(PATTERNS_6)}+{len(PATTERNS_7)}")
+    print(f"🎯 PDF 2 Trap: {len(TRAP_PATTERNS)}")
+    print("📡 MODE: 1 MIN WINGO")
     print("🤖 BOT: @rakiiibahmed")
     print("━━━━━━━━━━━━━━━━━━━━")
     
